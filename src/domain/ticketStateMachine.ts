@@ -8,7 +8,7 @@ import type {
   TicketStatus,
   TransitionPayload,
 } from '../types/ticket';
-import type { UserProfile } from '../types/user';
+import type { UserProfile, UserRole } from '../types/user';
 
 export interface ValidationResult {
   valid: boolean;
@@ -39,15 +39,40 @@ export interface TransitionResult {
   emailPlan: EmailDispatchPlan | null;
 }
 
-export function getInitialStatusForGroup(groupType: CreateTicketInput['groupType']): TicketStatus {
+export function getTicketReviewerId(ticket: Pick<Ticket, 'reviewerId' | 'createdBy'>): string {
+  return ticket.reviewerId || ticket.createdBy;
+}
+
+export function getTicketReviewerEmail(
+  ticket: Pick<Ticket, 'reviewerEmail' | 'createdByEmail'>
+): string {
+  return ticket.reviewerEmail || ticket.createdByEmail;
+}
+
+export function canDeleteTicket(
+  ticket: Pick<Ticket, 'createdBy'>,
+  user: Pick<UserProfile, 'uid'>
+): boolean {
+  return ticket.createdBy === user.uid;
+}
+
+export function getInitialStatusForCreation(
+  groupType: CreateTicketInput['groupType'],
+  creatorRole: UserRole
+): TicketStatus {
   switch (groupType) {
     case 'EDIT_OLD':
       return 'WAITING_OM';
     case 'NEW_LISTING':
-      return 'WAITING_LISTING';
+      // OM creating a NEW_LISTING ticket auto-passes the OM Listing step
+      return creatorRole === 'OM' ? 'PENDING_GOLIVE_APPROVAL' : 'WAITING_LISTING';
     case 'OFFICE':
       return 'WAITING_OM';
   }
+}
+
+export function getInitialStatusForGroup(groupType: CreateTicketInput['groupType']): TicketStatus {
+  return getInitialStatusForCreation(groupType, 'PD');
 }
 
 export function getGroupPrefix(groupType: CreateTicketInput['groupType']): string {
@@ -61,7 +86,10 @@ export function getGroupPrefix(groupType: CreateTicketInput['groupType']): strin
   }
 }
 
-export function validateCreateTicketInput(input: CreateTicketInput): ValidationResult {
+export function validateCreateTicketInput(
+  input: CreateTicketInput,
+  creatorRole: UserRole = 'PD'
+): ValidationResult {
   const errors: Record<string, string> = {};
 
   if (!input.title.trim()) {
@@ -71,12 +99,12 @@ export function validateCreateTicketInput(input: CreateTicketInput): ValidationR
     errors.deadline = 'Vui lòng chọn Deadline hợp lệ.';
   }
   if (!input.assigneeIds || input.assigneeIds.length === 0) {
-    errors.assigneeIds = 'Vui lòng chọn ít nhất 1 nhân sự thực hiện (OM).';
+    errors.assigneeIds = 'Vui lòng chọn ít nhất 1 nhân sự thực hiện.';
   } else if (
     (input.groupType === 'EDIT_OLD' || input.groupType === 'NEW_LISTING') &&
     input.assigneeIds.length !== 1
   ) {
-    errors.assigneeIds = 'Nhóm việc này chỉ giao cho đúng 1 nhân sự OM.';
+    errors.assigneeIds = 'Nhóm việc này chỉ giao cho đúng 1 nhân sự thực hiện.';
   }
 
   if (input.groupType === 'EDIT_OLD') {
@@ -89,6 +117,21 @@ export function validateCreateTicketInput(input: CreateTicketInput): ValidationR
   } else if (input.groupType === 'NEW_LISTING') {
     if (!input.productBasicInfo?.trim()) {
       errors.productBasicInfo = 'Vui lòng nhập thông tin sản phẩm cơ bản.';
+    }
+    if (creatorRole === 'OM') {
+      if (!input.expectedSku?.trim()) {
+        errors.expectedSku = 'Vui lòng nhập SKU dự kiến khi OM tạo Listing.';
+      }
+      if (!input.productUrl?.trim()) {
+        errors.productUrl = 'Vui lòng nhập URL sản phẩm.';
+      } else if (!isValidHttpUrl(input.productUrl)) {
+        errors.productUrl = 'URL sản phẩm phải bắt đầu bằng http:// hoặc https://.';
+      }
+      if (!input.reviewerId?.trim()) {
+        errors.reviewerId = 'Vui lòng chọn PD duyệt cho đơn Listing này.';
+      }
+    } else if (input.productUrl?.trim() && !isValidHttpUrl(input.productUrl)) {
+      errors.productUrl = 'URL sản phẩm phải bắt đầu bằng http:// hoặc https://.';
     }
   } else if (input.groupType === 'OFFICE') {
     if (!input.officeRequirements?.trim()) {
@@ -116,41 +159,41 @@ export function getAvailableActions(ticket: Ticket, user: UserProfile): TicketAc
     return [];
   }
 
-  const isAssignedOM = user.role === 'OM' && ticket.assigneeIds.includes(user.uid);
-  const isPD = user.role === 'PD';
+  const isAssignee = ticket.assigneeIds.includes(user.uid);
+  const isReviewer = getTicketReviewerId(ticket) === user.uid;
 
   if (ticket.groupType === 'EDIT_OLD') {
-    if (ticket.status === 'WAITING_OM' && isAssignedOM) {
+    if (ticket.status === 'WAITING_OM' && isAssignee) {
       return ['OM_COMPLETE'];
     }
-    if (ticket.status === 'PENDING_PD_CHECK' && isPD) {
+    if (ticket.status === 'PENDING_PD_CHECK' && isReviewer) {
       return ['PD_CLOSE', 'PD_REJECT_REWORK'];
     }
     return [];
   }
 
   if (ticket.groupType === 'NEW_LISTING') {
-    if (ticket.status === 'WAITING_LISTING' && isAssignedOM) {
+    if (ticket.status === 'WAITING_LISTING' && isAssignee) {
       return ['OM_SUBMIT_LISTING'];
     }
-    if (ticket.status === 'PENDING_GOLIVE_APPROVAL' && isPD) {
+    if (ticket.status === 'PENDING_GOLIVE_APPROVAL' && isReviewer) {
       return ['PD_APPROVE_GOLIVE', 'PD_REJECT_REWORK'];
     }
-    if (ticket.status === 'WAITING_GOLIVE' && isAssignedOM) {
+    if (ticket.status === 'WAITING_GOLIVE' && isAssignee) {
       return ['OM_SUBMIT_GOLIVE'];
     }
-    if (ticket.status === 'PENDING_CLOSE' && isPD) {
+    if (ticket.status === 'PENDING_CLOSE' && isReviewer) {
       return ['PD_CLOSE', 'PD_REJECT_REWORK'];
     }
     return [];
   }
 
   // OFFICE (Group III)
-  if (ticket.status === 'WAITING_OM' && isAssignedOM) {
+  if (ticket.status === 'WAITING_OM' && isAssignee) {
     const alreadyDone = Boolean(ticket.assigneeStates?.[user.uid]?.completed);
     return alreadyDone ? [] : ['OM_COMPLETE'];
   }
-  if (ticket.status === 'PENDING_PD_CHECK' && isPD) {
+  if (ticket.status === 'PENDING_PD_CHECK' && isReviewer) {
     return ['PD_CLOSE', 'PD_REJECT_REWORK'];
   }
   return [];
@@ -221,6 +264,7 @@ export function computeTransitionResult(
   const assigneeEmails = ticket.assigneeIds
     .map((uid) => ticket.assigneeSnapshots[uid]?.email)
     .filter((e): e is string => Boolean(e));
+  const reviewerEmail = getTicketReviewerEmail(ticket);
 
   // Group I: EDIT_OLD
   if (ticket.groupType === 'EDIT_OLD') {
@@ -232,7 +276,7 @@ export function computeTransitionResult(
         historyNote: trimmedNote,
         emailPlan: {
           eventType: 'OM_COMPLETED',
-          recipients: [ticket.createdByEmail],
+          recipients: [reviewerEmail],
           note: trimmedNote,
         },
       };
@@ -277,7 +321,7 @@ export function computeTransitionResult(
         historyMetadata: { expectedSku },
         emailPlan: {
           eventType: 'OM_COMPLETED',
-          recipients: [ticket.createdByEmail],
+          recipients: [reviewerEmail],
           expectedSku,
           note: trimmedNote,
         },
@@ -311,7 +355,7 @@ export function computeTransitionResult(
         historyMetadata: { productUrl },
         emailPlan: {
           eventType: 'GOLIVE_SUBMITTED',
-          recipients: [ticket.createdByEmail],
+          recipients: [reviewerEmail],
           expectedSku: ticket.expectedSku || undefined,
           productUrl,
           note: trimmedNote,
@@ -319,7 +363,6 @@ export function computeTransitionResult(
       };
     }
     if (action === 'PD_REJECT_REWORK') {
-      // At PENDING_GOLIVE_APPROVAL -> back to WAITING_LISTING; at PENDING_CLOSE -> back to WAITING_GOLIVE
       const backStatus: TicketStatus =
         ticket.status === 'PENDING_CLOSE' ? 'WAITING_GOLIVE' : 'WAITING_LISTING';
       return {
@@ -375,7 +418,7 @@ export function computeTransitionResult(
         emailPlan: allDone
           ? {
               eventType: 'OM_COMPLETED',
-              recipients: [ticket.createdByEmail],
+              recipients: [reviewerEmail],
               note: trimmedNote,
             }
           : null,

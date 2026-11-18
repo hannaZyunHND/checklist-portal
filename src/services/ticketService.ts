@@ -7,19 +7,19 @@ import {
   orderBy,
   query,
   runTransaction,
-  where,
   writeBatch,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import {
   computeTransitionResult,
   getGroupPrefix,
-  getInitialStatusForGroup,
+  getInitialStatusForCreation,
   validateCreateTicketInput,
 } from '../domain/ticketStateMachine';
 import type {
   AssigneeProgressState,
   CreateTicketInput,
+  EmailEventType,
   Ticket,
   TicketAction,
   TicketAttachment,
@@ -63,19 +63,11 @@ async function readAppEmailConfig(): Promise<AppEmailConfig> {
 }
 
 export function subscribeVisibleTickets(
-  currentUser: UserProfile,
+  _currentUser: UserProfile,
   callback: (tickets: Ticket[]) => void,
   onError?: (msg: string) => void
 ): () => void {
-  const baseRef = collection(db, 'tickets');
-  const q =
-    currentUser.role === 'PD'
-      ? query(baseRef, orderBy('updatedAt', 'desc'))
-      : query(
-          baseRef,
-          where('assigneeIds', 'array-contains', currentUser.uid),
-          orderBy('updatedAt', 'desc')
-        );
+  const q = query(collection(db, 'tickets'), orderBy('updatedAt', 'desc'));
 
   return onSnapshot(
     q,
@@ -155,21 +147,23 @@ export function subscribeTicketAttachments(
 
 export async function createTicket(
   input: CreateTicketInput,
-  pdUser: UserProfile,
+  creatorUser: UserProfile,
   allUsers: UserProfile[]
 ): Promise<{ ticket: Ticket; emailResult: EmailDispatchResult }> {
-  if (pdUser.role !== 'PD') {
-    throw new Error('Chỉ tài khoản PD mới có quyền tạo ticket.');
-  }
-
-  const validation = validateCreateTicketInput(input);
+  const validation = validateCreateTicketInput(input, creatorUser.role);
   if (!validation.valid) {
     throw new Error(Object.values(validation.errors)[0] || 'Thông tin ticket chưa hợp lệ.');
   }
 
   const now = Date.now();
-  const initialStatus = getInitialStatusForGroup(input.groupType);
+  const initialStatus = getInitialStatusForCreation(input.groupType, creatorUser.role);
   const snapshots = buildSnapshots(input.assigneeIds, allUsers);
+  const reviewerUser =
+    (input.reviewerId ? allUsers.find((u) => u.uid === input.reviewerId) : undefined) ||
+    creatorUser;
+
+  const isOmAutoListing = input.groupType === 'NEW_LISTING' && creatorUser.role === 'OM';
+
   const ticketRef = doc(collection(db, 'tickets'));
   const counterRef = doc(db, 'config', 'counters');
   const historyRef = doc(collection(db, 'tickets', ticketRef.id, 'history'));
@@ -225,15 +219,21 @@ export async function createTicket(
           )
         : undefined;
 
+    const expectedSkuVal = input.expectedSku?.trim() || null;
+    const productUrlVal = input.productUrl?.trim() || null;
+
     const docData: Omit<Ticket, 'id'> = {
       code,
       groupType: input.groupType,
       title: input.title.trim(),
       status: initialStatus,
       deadline: input.deadline,
-      createdBy: pdUser.uid,
-      createdByName: pdUser.displayName,
-      createdByEmail: pdUser.email,
+      createdBy: creatorUser.uid,
+      createdByName: creatorUser.displayName,
+      createdByEmail: creatorUser.email,
+      reviewerId: reviewerUser.uid,
+      reviewerName: reviewerUser.displayName,
+      reviewerEmail: reviewerUser.email,
       assigneeIds: input.assigneeIds,
       assigneeSnapshots: snapshots,
       createdAt: now,
@@ -250,8 +250,8 @@ export async function createTicket(
         ? {
             productBasicInfo: input.productBasicInfo!.trim(),
             additionalRequirements: input.additionalRequirements?.trim() || '',
-            expectedSku: null,
-            productUrl: null,
+            expectedSku: expectedSkuVal,
+            productUrl: productUrlVal,
           }
         : {}),
       ...(input.groupType === 'OFFICE'
@@ -264,18 +264,31 @@ export async function createTicket(
 
     tx.set(counterRef, { ...counters, [input.groupType]: nextNum }, { merge: true });
     tx.set(ticketRef, docData);
+
+    const baseNote = isOmAutoListing
+      ? `OM tạo Listing & auto-pass bước OM Listing sang chờ PD (${reviewerUser.displayName}) duyệt GoLive`
+      : 'Khởi tạo và giao ticket';
+
     tx.set(historyRef, {
       ticketId: ticketRef.id,
-      actorId: pdUser.uid,
-      actorName: pdUser.displayName,
-      actorRole: pdUser.role,
+      actorId: creatorUser.uid,
+      actorName: creatorUser.displayName,
+      actorRole: creatorUser.role,
       action: 'CREATE',
       fromStatus: null,
       toStatus: initialStatus,
       note:
         uploadedAttachments.length > 0
-          ? `Khởi tạo và giao ticket (đính kèm ${uploadedAttachments.length} tệp)`
-          : 'Khởi tạo và giao ticket',
+          ? `${baseNote} (đính kèm ${uploadedAttachments.length} tệp)`
+          : baseNote,
+      ...(isOmAutoListing
+        ? {
+            metadata: {
+              ...(expectedSkuVal ? { expectedSku: expectedSkuVal } : {}),
+              ...(productUrlVal ? { productUrl: productUrlVal } : {}),
+            },
+          }
+        : {}),
       createdAt: now,
     });
 
@@ -290,16 +303,21 @@ export async function createTicket(
     createdTicket = { id: ticketRef.id, ...docData };
   });
 
-  const recipients = input.assigneeIds
-    .map((uid) => snapshots[uid]?.email)
-    .filter((e): e is string => Boolean(e));
+  const recipients: string[] = isOmAutoListing
+    ? [reviewerUser.email]
+    : input.assigneeIds
+        .map((uid) => snapshots[uid]?.email)
+        .filter((e): e is string => Boolean(e));
 
+  const eventType: EmailEventType = isOmAutoListing ? 'OM_COMPLETED' : 'TICKET_CREATED';
   const overrideConfig = await readAppEmailConfig();
   const emailResult = await dispatchTicketEmail({
     ticket: createdTicket,
-    eventType: 'TICKET_CREATED',
+    eventType,
     recipients,
-    actorName: `${pdUser.displayName} (PD)`,
+    actorName: `${creatorUser.displayName} (${creatorUser.role})`,
+    expectedSku: createdTicket.expectedSku || undefined,
+    productUrl: createdTicket.productUrl || undefined,
     overrideConfig,
   });
 
@@ -365,11 +383,17 @@ export async function performTicketTransition(params: {
 }
 
 export async function deleteTicket(ticketId: string, actor: UserProfile): Promise<void> {
-  if (actor.role !== 'PD') {
-    throw new Error('Chỉ tài khoản PD mới có quyền xóa ticket.');
+  const ticketRef = doc(db, 'tickets', ticketId);
+  const ticketSnap = await getDoc(ticketRef);
+  if (!ticketSnap.exists()) {
+    throw new Error('Ticket không tồn tại hoặc đã bị xóa.');
   }
 
-  const ticketRef = doc(db, 'tickets', ticketId);
+  const ticketData = ticketSnap.data() as Omit<Ticket, 'id'>;
+  if (ticketData.createdBy !== actor.uid) {
+    throw new Error('Chỉ tài khoản đã tạo ticket này mới có quyền xóa.');
+  }
+
   const [historySnap, attachmentsSnap] = await Promise.all([
     getDocs(collection(db, 'tickets', ticketId, 'history')),
     getDocs(collection(db, 'tickets', ticketId, 'attachments')),
@@ -385,7 +409,6 @@ export async function deleteTicket(ticketId: string, actor: UserProfile): Promis
     ticketRef,
   ];
 
-  // Firestore batch limit is 500 operations
   for (let i = 0; i < refsToDelete.length; i += 450) {
     const batch = writeBatch(db);
     for (const ref of refsToDelete.slice(i, i + 450)) {

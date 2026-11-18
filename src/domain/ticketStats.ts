@@ -56,9 +56,9 @@ export function createEmptyStatusCounts(): Record<TicketStatus, number> {
   };
 }
 
-export function filterVisibleTicketsForUser(tickets: Ticket[], user: UserProfile): Ticket[] {
-  if (user.role === 'PD') return tickets;
-  return tickets.filter((t) => t.assigneeIds.includes(user.uid));
+export function filterVisibleTicketsForUser(tickets: Ticket[], _user: UserProfile): Ticket[] {
+  // Mọi thành viên trong team đều xem được danh sách task của nhau
+  return tickets;
 }
 
 export function computeStatistics(
@@ -75,12 +75,7 @@ export function computeStatistics(
 
   const staffMap = new Map<string, StaffStatusRow>();
 
-  const targetStaff =
-    currentUser.role === 'PD'
-      ? users.filter((u) => u.role === 'OM')
-      : users.filter((u) => u.uid === currentUser.uid);
-
-  for (const member of targetStaff) {
+  for (const member of users) {
     staffMap.set(member.uid, {
       uid: member.uid,
       displayName: member.displayName,
@@ -100,8 +95,6 @@ export function computeStatistics(
     if (isPendingPdStatus(ticket.status)) pendingPdTickets += 1;
 
     for (const assigneeUid of ticket.assigneeIds) {
-      if (currentUser.role === 'OM' && assigneeUid !== currentUser.uid) continue;
-
       let row = staffMap.get(assigneeUid);
       if (!row) {
         const snap = ticket.assigneeSnapshots[assigneeUid];
@@ -123,7 +116,9 @@ export function computeStatistics(
     }
   }
 
-  const byStaff = Array.from(staffMap.values()).sort((a, b) => b.overdue - a.overdue || b.total - a.total);
+  const byStaff = Array.from(staffMap.values())
+    .filter((s) => s.total > 0)
+    .sort((a, b) => b.overdue - a.overdue || b.total - a.total);
 
   return {
     totalTickets: scopedTickets.length,

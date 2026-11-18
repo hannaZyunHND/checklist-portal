@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { FileEdit, FolderKanban, Loader2, PackagePlus } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { validateCreateTicketInput } from '../../domain/ticketStateMachine';
@@ -44,25 +44,31 @@ const GROUP_OPTIONS: Array<{
   {
     type: 'OFFICE',
     label: 'Công việc VP',
-    desc: 'Giao 1 hoặc nhiều OM',
+    desc: 'Giao 1 hoặc nhiều nhân sự',
     Icon: FolderKanban,
   },
 ];
 
 export function CreateTicketModal({ open, onClose, users, onCreated }: CreateTicketModalProps) {
   const { userProfile } = useAuth();
-  const omUsers = useMemo(() => users.filter((u) => u.role === 'OM'), [users]);
+  const pdUsers = useMemo(() => users.filter((u) => u.role === 'PD'), [users]);
+  const isOM = userProfile?.role === 'OM';
 
-  const [groupType, setGroupType] = useState<TicketGroupType>('EDIT_OLD');
+  const [groupType, setGroupType] = useState<TicketGroupType>(() =>
+    userProfile?.role === 'OM' ? 'NEW_LISTING' : 'EDIT_OLD'
+  );
   const [title, setTitle] = useState('');
   const [deadlineStr, setDeadlineStr] = useState(() =>
     toDatetimeLocalValue(Date.now() + 24 * 60 * 60 * 1000)
   );
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const [reviewerId, setReviewerId] = useState('');
   const [sku, setSku] = useState('');
   const [editRequirements, setEditRequirements] = useState('');
   const [productBasicInfo, setProductBasicInfo] = useState('');
   const [additionalRequirements, setAdditionalRequirements] = useState('');
+  const [expectedSku, setExpectedSku] = useState('');
+  const [productUrl, setProductUrl] = useState('');
   const [officeRequirements, setOfficeRequirements] = useState('');
   const [attachments, setAttachments] = useState<TicketAttachmentDraft[]>([]);
 
@@ -71,17 +77,33 @@ export function CreateTicketModal({ open, onClose, users, onCreated }: CreateTic
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState('');
 
+  useEffect(() => {
+    if (open && userProfile) {
+      if (userProfile.role === 'OM' && groupType === 'NEW_LISTING' && assigneeIds.length === 0) {
+        setAssigneeIds([userProfile.uid]);
+      }
+      if (!reviewerId) {
+        setReviewerId(
+          userProfile.role === 'PD' ? userProfile.uid : pdUsers[0]?.uid || ''
+        );
+      }
+    }
+  }, [open, userProfile, groupType, pdUsers, assigneeIds.length, reviewerId]);
+
   const resetForm = () => {
     attachments.forEach((a) => {
       if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
     });
     setTitle('');
     setDeadlineStr(toDatetimeLocalValue(Date.now() + 24 * 60 * 60 * 1000));
-    setAssigneeIds([]);
+    setAssigneeIds(userProfile?.role === 'OM' ? [userProfile.uid] : []);
+    setReviewerId(userProfile?.role === 'PD' ? userProfile.uid : pdUsers[0]?.uid || '');
     setSku('');
     setEditRequirements('');
     setProductBasicInfo('');
     setAdditionalRequirements('');
+    setExpectedSku('');
+    setProductUrl('');
     setOfficeRequirements('');
     setAttachments([]);
     setErrors({});
@@ -92,7 +114,10 @@ export function CreateTicketModal({ open, onClose, users, onCreated }: CreateTic
   const handleGroupChange = (nextGroup: TicketGroupType) => {
     setGroupType(nextGroup);
     setErrors({});
-    if (nextGroup !== 'OFFICE' && assigneeIds.length > 1) {
+    if (nextGroup === 'NEW_LISTING' && isOM && userProfile) {
+      setAssigneeIds([userProfile.uid]);
+      if (!reviewerId) setReviewerId(pdUsers[0]?.uid || '');
+    } else if (nextGroup !== 'OFFICE' && assigneeIds.length > 1) {
       setAssigneeIds(assigneeIds.slice(0, 1));
     }
   };
@@ -108,20 +133,26 @@ export function CreateTicketModal({ open, onClose, users, onCreated }: CreateTic
     if (!userProfile) return;
     setServerError('');
 
+    const effectiveReviewerId =
+      groupType === 'NEW_LISTING' && isOM ? reviewerId : reviewerId || userProfile.uid;
+
     const input: CreateTicketInput = {
       groupType,
       title,
       deadline: parseDatetimeLocalVietnam(deadlineStr),
       assigneeIds,
+      reviewerId: effectiveReviewerId,
       sku,
       editRequirements,
       productBasicInfo,
       additionalRequirements,
+      expectedSku,
+      productUrl,
       officeRequirements,
       attachments,
     };
 
-    const validation = validateCreateTicketInput(input);
+    const validation = validateCreateTicketInput(input, userProfile.role);
     if (!validation.valid) {
       setErrors(validation.errors);
       setSubmitAttempt((c) => c + 1);
@@ -145,12 +176,14 @@ export function CreateTicketModal({ open, onClose, users, onCreated }: CreateTic
     }
   };
 
+  const isOmListingMode = isOM && groupType === 'NEW_LISTING';
+
   return (
     <ModalOrSheet
       open={open}
       onClose={onClose}
       title="Tạo Ticket công việc mới"
-      subtitle="Chọn đúng nhóm việc cố định và điền các trường bắt buộc (*)"
+      subtitle="Giao việc linh hoạt trong team (PD và OM đều có thể tạo và giao cho nhau)"
       maxWidthClass="md:max-w-2xl"
     >
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
@@ -195,6 +228,13 @@ export function CreateTicketModal({ open, onClose, users, onCreated }: CreateTic
             })}
           </div>
         </div>
+
+        {isOmListingMode && (
+          <div className="rounded-xl border border-teal-200 bg-teal-50 px-3.5 py-2.5 text-xs text-teal-900">
+            <strong>Luồng OM tạo Listing:</strong> Ticket sẽ <strong>auto-pass bước OM Listing</strong>{' '}
+            và gửi thẳng tới <strong>PD được chỉ định</strong> để duyệt GoLive. Chỉ PD đó mới có quyền duyệt.
+          </div>
+        )}
 
         {/* Title */}
         <div>
@@ -291,6 +331,50 @@ export function CreateTicketModal({ open, onClose, users, onCreated }: CreateTic
               )}
             </div>
 
+            {isOmListingMode && (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label
+                    htmlFor="field-expectedSku"
+                    className="block text-sm font-medium text-slate-800"
+                  >
+                    SKU dự kiến <span className="text-red-600">*</span>
+                  </label>
+                  <input
+                    id="field-expectedSku"
+                    type="text"
+                    value={expectedSku}
+                    onChange={(e) => setExpectedSku(e.target.value)}
+                    placeholder="VD: JT-NEW-001"
+                    className="font-mono-code mt-1.5 min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 md:text-sm"
+                  />
+                  {errors.expectedSku && (
+                    <p className="mt-1 text-xs text-red-600">{errors.expectedSku}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="field-productUrl"
+                    className="block text-sm font-medium text-slate-800"
+                  >
+                    URL sản phẩm <span className="text-red-600">*</span>
+                  </label>
+                  <input
+                    id="field-productUrl"
+                    type="url"
+                    value={productUrl}
+                    onChange={(e) => setProductUrl(e.target.value)}
+                    placeholder="https://..."
+                    className="mt-1.5 min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 md:text-sm"
+                  />
+                  {errors.productUrl && (
+                    <p className="mt-1 text-xs text-red-600">{errors.productUrl}</p>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div>
               <label
                 htmlFor="field-additionalRequirements"
@@ -336,7 +420,7 @@ export function CreateTicketModal({ open, onClose, users, onCreated }: CreateTic
           </div>
         )}
 
-        {/* Shared Image Attachments for Quote / Chat Log / Product Info */}
+        {/* Shared File Attachments */}
         <ImageAttachmentPicker attachments={attachments} onChange={setAttachments} />
 
         {/* Deadline */}
@@ -359,19 +443,47 @@ export function CreateTicketModal({ open, onClose, users, onCreated }: CreateTic
           )}
         </div>
 
-        {/* Assignees */}
+        {/* Reviewer selector (Required for OM-created NEW_LISTING; optional/defaults to creator otherwise) */}
+        {isOmListingMode && (
+          <div>
+            <label htmlFor="field-reviewerId" className="block text-sm font-medium text-slate-800">
+              Gán cho PD duyệt đơn này <span className="text-red-600">*</span>
+            </label>
+            <select
+              id="field-reviewerId"
+              value={reviewerId}
+              onChange={(e) => setReviewerId(e.target.value)}
+              className="mt-1.5 min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 md:text-sm"
+            >
+              <option value="">-- Chọn PD duyệt --</option>
+              {pdUsers.map((pd) => (
+                <option key={pd.uid} value={pd.uid}>
+                  {pd.displayName} (PD · {pd.email})
+                </option>
+              ))}
+            </select>
+            {errors.reviewerId && (
+              <p id="err-reviewerId" className="mt-1 text-xs text-red-600">
+                {errors.reviewerId}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Assignees (Any member: PD or OM) */}
         <div>
           <label htmlFor="field-assigneeIds" className="block text-sm font-medium text-slate-800">
-            {groupType === 'OFFICE'
-              ? 'Các nhân sự OM được giao (chọn 1 hoặc nhiều)'
-              : 'Nhân sự OM được giao (chọn 1)'}{' '}
+            {isOmListingMode
+              ? 'Nhân sự thực hiện bước GoLive (mặc định chính bạn)'
+              : groupType === 'OFFICE'
+              ? 'Các nhân sự được giao (chọn 1 hoặc nhiều)'
+              : 'Nhân sự được giao thực hiện (chọn 1)'}{' '}
             <span className="text-red-600">*</span>
           </label>
 
-          {omUsers.length === 0 ? (
+          {users.length === 0 ? (
             <div className="mt-1.5 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
-              Chưa có tài khoản nhân sự OM nào trong hệ thống. Hãy mời nhân sự OM đăng ký tài khoản
-              trước khi giao việc.
+              Chưa có thành viên nào trong hệ thống.
             </div>
           ) : groupType === 'OFFICE' ? (
             <div
@@ -379,11 +491,11 @@ export function CreateTicketModal({ open, onClose, users, onCreated }: CreateTic
               tabIndex={-1}
               className="mt-1.5 max-h-48 space-y-1.5 overflow-y-auto rounded-lg border border-slate-300 bg-slate-50 p-2"
             >
-              {omUsers.map((om) => {
-                const checked = assigneeIds.includes(om.uid);
+              {users.map((member) => {
+                const checked = assigneeIds.includes(member.uid);
                 return (
                   <label
-                    key={om.uid}
+                    key={member.uid}
                     className={`flex min-h-[44px] items-center gap-3 rounded-lg border px-3 py-2 transition ${
                       checked
                         ? 'border-teal-500 bg-white'
@@ -393,19 +505,20 @@ export function CreateTicketModal({ open, onClose, users, onCreated }: CreateTic
                     <input
                       type="checkbox"
                       checked={checked}
-                      onChange={() => toggleOfficeAssignee(om.uid)}
+                      onChange={() => toggleOfficeAssignee(member.uid)}
                       className="h-4 w-4 accent-teal-600"
                     />
                     <UserAvatar
-                      name={om.displayName}
-                      avatarDataUrl={om.avatarDataUrl}
+                      name={member.displayName}
+                      avatarDataUrl={member.avatarDataUrl}
                       size="xs"
                     />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium text-slate-900">
-                        {om.displayName}
+                        {member.displayName}{' '}
+                        <span className="text-xs font-semibold text-teal-700">({member.role})</span>
                       </div>
-                      <div className="truncate text-xs text-slate-500">{om.email}</div>
+                      <div className="truncate text-xs text-slate-500">{member.email}</div>
                     </div>
                   </label>
                 );
@@ -418,10 +531,10 @@ export function CreateTicketModal({ open, onClose, users, onCreated }: CreateTic
               onChange={(e) => setAssigneeIds(e.target.value ? [e.target.value] : [])}
               className="mt-1.5 min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 md:text-sm"
             >
-              <option value="">-- Chọn nhân sự OM --</option>
-              {omUsers.map((om) => (
-                <option key={om.uid} value={om.uid}>
-                  {om.displayName} ({om.email})
+              <option value="">-- Chọn nhân sự được giao --</option>
+              {users.map((member) => (
+                <option key={member.uid} value={member.uid}>
+                  {member.displayName} ({member.role} · {member.email})
                 </option>
               ))}
             </select>
@@ -443,11 +556,11 @@ export function CreateTicketModal({ open, onClose, users, onCreated }: CreateTic
           </button>
           <button
             type="submit"
-            disabled={submitting || omUsers.length === 0}
+            disabled={submitting || users.length === 0}
             className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg bg-orange-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-            <span>{submitting ? 'Đang tạo & gửi email...' : 'Tạo Ticket & Gửi thông báo'}</span>
+            <span>{submitting ? 'Đang tạo & gửi thông báo...' : 'Tạo Ticket & Gửi thông báo'}</span>
           </button>
         </div>
       </form>

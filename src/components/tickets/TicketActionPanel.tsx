@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { CheckCircle2, Clock, Loader2, Rocket, RotateCcw } from 'lucide-react';
-import { getAvailableActions, validateTransition } from '../../domain/ticketStateMachine';
+import {
+  getAvailableActions,
+  getTicketReviewerId,
+  validateTransition,
+} from '../../domain/ticketStateMachine';
 import { performTicketTransition } from '../../services/ticketService';
 import type { Ticket, TicketAction } from '../../types/ticket';
 import type { UserProfile } from '../../types/user';
@@ -137,10 +141,15 @@ export function TicketActionPanel({
           {ticket.status === 'CLOSED'
             ? 'Ticket này đã được đóng hoàn tất.'
             : ticket.groupType === 'OFFICE' &&
-              currentUser.role === 'OM' &&
+              ticket.assigneeIds.includes(currentUser.uid) &&
               ticket.assigneeStates?.[currentUser.uid]?.completed
-            ? 'Bạn đã tích hoàn thành phần việc của mình. Hệ thống đang chờ các nhân sự còn lại hoàn tất để báo PD.'
-            : 'Hiện tại bạn không có thao tác xử lý ở bước này (đang chờ bên còn lại phản hồi).'}
+            ? 'Bạn đã tích hoàn thành phần việc của mình. Hệ thống đang chờ các nhân sự còn lại hoàn tất để báo người duyệt.'
+            : (ticket.status === 'PENDING_PD_CHECK' ||
+                ticket.status === 'PENDING_GOLIVE_APPROVAL' ||
+                ticket.status === 'PENDING_CLOSE') &&
+              getTicketReviewerId(ticket) !== currentUser.uid
+            ? `Đang chờ người duyệt được chỉ định (${ticket.reviewerName || ticket.createdByName}) kiểm tra. Các tài khoản khác chỉ có quyền xem.`
+            : 'Hiện tại bạn không có thao tác xử lý ở bước này (đang chờ bên được giao phản hồi).'}
         </div>
       ) : (
         <div className="space-y-4">

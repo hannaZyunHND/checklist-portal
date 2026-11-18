@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ClipboardList, Plus } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { canDeleteTicket, getTicketReviewerId } from '../domain/ticketStateMachine';
 import { isTicketOverdue } from '../domain/ticketStats';
 import { deleteTicket } from '../services/ticketService';
 import type { Ticket, TicketGroupType, TicketStatus } from '../types/ticket';
@@ -21,7 +22,6 @@ interface TicketsPageProps {
 export function TicketsPage({ tickets, users, nowMs, onOpenCreateTicket }: TicketsPageProps) {
   const { userProfile } = useAuth();
   const [searchParams] = useSearchParams();
-  const isPD = userProfile?.role === 'PD';
   const [ticketToDelete, setTicketToDelete] = useState<Ticket | null>(null);
 
   const [filters, setFilters] = useState<TicketFilterState>(() => ({
@@ -30,16 +30,19 @@ export function TicketsPage({ tickets, users, nowMs, onOpenCreateTicket }: Ticke
     status: (searchParams.get('status') as TicketStatus) || 'ALL',
     assigneeId: searchParams.get('assignee') || 'ALL',
     overdueOnly: searchParams.get('overdue') === '1',
+    mineOnly: searchParams.get('mine') === '1',
   }));
 
   useEffect(() => {
     const overdue = searchParams.get('overdue') === '1';
+    const mine = searchParams.get('mine') === '1';
     const status = searchParams.get('status') as TicketStatus | null;
     const assignee = searchParams.get('assignee');
-    if (overdue || status || assignee) {
+    if (overdue || mine || status || assignee) {
       setFilters((prev) => ({
         ...prev,
         overdueOnly: overdue || prev.overdueOnly,
+        mineOnly: mine || prev.mineOnly,
         status: status || prev.status,
         assigneeId: assignee || prev.assigneeId,
       }));
@@ -51,10 +54,17 @@ export function TicketsPage({ tickets, users, nowMs, onOpenCreateTicket }: Ticke
     return tickets.filter((t) => {
       if (filters.groupType !== 'ALL' && t.groupType !== filters.groupType) return false;
       if (filters.status !== 'ALL' && t.status !== filters.status) return false;
-      if (isPD && filters.assigneeId !== 'ALL' && !t.assigneeIds.includes(filters.assigneeId)) {
+      if (filters.assigneeId !== 'ALL' && !t.assigneeIds.includes(filters.assigneeId)) {
         return false;
       }
       if (filters.overdueOnly && !isTicketOverdue(t, nowMs)) return false;
+      if (filters.mineOnly && userProfile) {
+        const isRelated =
+          t.createdBy === userProfile.uid ||
+          getTicketReviewerId(t) === userProfile.uid ||
+          t.assigneeIds.includes(userProfile.uid);
+        if (!isRelated) return false;
+      }
 
       if (q) {
         const haystack = [
@@ -62,6 +72,8 @@ export function TicketsPage({ tickets, users, nowMs, onOpenCreateTicket }: Ticke
           t.title,
           t.sku || '',
           t.expectedSku || '',
+          t.createdByName,
+          t.reviewerName || '',
           ...Object.values(t.assigneeSnapshots).map((s) => s.displayName),
         ]
           .join(' ')
@@ -70,7 +82,7 @@ export function TicketsPage({ tickets, users, nowMs, onOpenCreateTicket }: Ticke
       }
       return true;
     });
-  }, [tickets, filters, isPD, nowMs]);
+  }, [tickets, filters, userProfile, nowMs]);
 
   return (
     <div className="space-y-4">
@@ -80,25 +92,21 @@ export function TicketsPage({ tickets, users, nowMs, onOpenCreateTicket }: Ticke
             Danh sách Công việc ({filteredTickets.length})
           </h1>
           <p className="mt-0.5 text-sm text-slate-600">
-            {isPD
-              ? 'Quản lý toàn bộ ticket across 3 nhóm việc cố định.'
-              : 'Các ticket được giao cho bạn xử lý.'}
+            Mọi thành viên có thể xem toàn bộ task; chỉ người tạo mới có quyền xóa task mình tạo.
           </p>
         </div>
 
-        {isPD && (
-          <button
-            type="button"
-            onClick={onOpenCreateTicket}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-700"
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            <span>Tạo Ticket mới</span>
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={onOpenCreateTicket}
+          className="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-700"
+        >
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          <span>Tạo Ticket mới</span>
+        </button>
       </div>
 
-      <TicketFilterBar filters={filters} onChange={setFilters} isPD={Boolean(isPD)} users={users} />
+      <TicketFilterBar filters={filters} onChange={setFilters} users={users} />
 
       {filteredTickets.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
@@ -107,7 +115,7 @@ export function TicketsPage({ tickets, users, nowMs, onOpenCreateTicket }: Ticke
             Không tìm thấy ticket nào phù hợp
           </h3>
           <p className="mt-1 text-sm text-slate-500">
-            Thử thay đổi điều kiện lọc hoặc tạo ticket mới nếu bạn là PD.
+            Thử thay đổi điều kiện lọc hoặc bấm &quot;Tạo Ticket mới&quot;.
           </p>
         </div>
       ) : (
@@ -115,7 +123,7 @@ export function TicketsPage({ tickets, users, nowMs, onOpenCreateTicket }: Ticke
           <TicketTable
             tickets={filteredTickets}
             nowMs={nowMs}
-            canDelete={Boolean(isPD)}
+            canDeleteTicket={(t) => (userProfile ? canDeleteTicket(t, userProfile) : false)}
             onDeleteTicket={setTicketToDelete}
           />
           <TicketCardList tickets={filteredTickets} nowMs={nowMs} />

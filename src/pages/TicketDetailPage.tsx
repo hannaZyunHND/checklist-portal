@@ -16,6 +16,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { canDeleteTicket, getTicketReviewerId } from '../domain/ticketStateMachine';
 import { isTicketOverdue } from '../domain/ticketStats';
 import { dispatchTicketEmail, subscribeTicketEmailLogs } from '../services/emailService';
 import {
@@ -96,8 +97,7 @@ export function TicketDetailPage({ nowMs }: { nowMs: number }) {
     );
     const unsubHistory = subscribeTicketHistory(id, setHistory);
     const unsubAttachments = subscribeTicketAttachments(id, setAttachments);
-    const unsubEmail =
-      userProfile?.role === 'PD' ? subscribeTicketEmailLogs(id, setEmailLogs) : () => {};
+    const unsubEmail = subscribeTicketEmailLogs(id, setEmailLogs);
 
     return () => {
       unsubTicket();
@@ -169,7 +169,7 @@ export function TicketDetailPage({ nowMs }: { nowMs: number }) {
           <span>Quay lại danh sách công việc</span>
         </Link>
 
-        {userProfile.role === 'PD' && (
+        {canDeleteTicket(ticket, userProfile) && (
           <button
             type="button"
             onClick={() => setDeleteModalOpen(true)}
@@ -236,7 +236,7 @@ export function TicketDetailPage({ nowMs }: { nowMs: number }) {
 
         <TicketStepper ticket={ticket} />
 
-        <div className="grid grid-cols-1 gap-4 border-t border-slate-100 pt-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 border-t border-slate-100 pt-4 text-sm sm:grid-cols-2 lg:grid-cols-5">
           <div>
             <div className="text-xs text-slate-500">Nhóm nghiệp vụ</div>
             <div className="mt-0.5 font-medium text-slate-900">
@@ -244,9 +244,18 @@ export function TicketDetailPage({ nowMs }: { nowMs: number }) {
             </div>
           </div>
           <div>
-            <div className="text-xs text-slate-500">Người tạo (PD)</div>
+            <div className="text-xs text-slate-500">Người tạo</div>
             <div className="mt-0.5 font-medium text-slate-900">{ticket.createdByName}</div>
             <div className="text-xs text-slate-500">{ticket.createdByEmail}</div>
+          </div>
+          <div>
+            <div className="text-xs text-slate-500">Người duyệt (PD)</div>
+            <div className="mt-0.5 font-medium text-slate-900">
+              {ticket.reviewerName || ticket.createdByName}
+            </div>
+            <div className="text-xs text-slate-500">
+              {ticket.reviewerEmail || ticket.createdByEmail}
+            </div>
           </div>
           <div>
             <div className="text-xs text-slate-500">Thời gian tạo</div>
@@ -472,8 +481,10 @@ export function TicketDetailPage({ nowMs }: { nowMs: number }) {
             onActionSuccess={(msg, warning) => setFeedback({ msg, warning })}
           />
 
-          {/* PD Only: Latest Email Notification Delivery Status */}
-          {userProfile.role === 'PD' && latestEmail && (
+          {/* Creator / Reviewer: Latest Email Notification Delivery Status */}
+          {(userProfile.uid === ticket.createdBy ||
+            userProfile.uid === getTicketReviewerId(ticket)) &&
+            latestEmail && (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 text-xs">
               <div className="flex items-start gap-2.5">
                 <Mail className="mt-0.5 h-4 w-4 text-slate-500" aria-hidden="true" />

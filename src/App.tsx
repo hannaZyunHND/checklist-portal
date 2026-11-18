@@ -97,7 +97,7 @@ function WorkspaceRoutes() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
-      {userProfile?.role === 'PD' && (
+      {userProfile && (
         <CreateTicketModal
           open={createModalOpen}
           onClose={() => setCreateModalOpen(false)}

@@ -38,6 +38,11 @@ service cloud.firestore {
         && request.resource.data.inviteCodeUsed == appConfigData().pdInviteCode;
     }
 
+    function isTicketReviewer(ticketData) {
+      return ('reviewerId' in ticketData && ticketData.reviewerId == request.auth.uid)
+        || (!('reviewerId' in ticketData) && ticketData.createdBy == request.auth.uid);
+    }
+
     match /users/{uid} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
@@ -57,45 +62,47 @@ service cloud.firestore {
 
     match /config/{docId} {
       allow read: if isSignedIn();
-      allow write: if isPD();
+      allow write: if isSignedIn();
     }
 
     match /tickets/{ticketId} {
-      allow read: if isPD()
-        || (isSignedIn() && request.auth.uid in resource.data.assigneeIds);
-      allow create: if isPD();
-      allow update: if isPD()
-        || (
-          isSignedIn()
-          && request.auth.uid in resource.data.assigneeIds
-          && request.resource.data.status != 'CLOSED'
-          && request.resource.data.createdBy == resource.data.createdBy
-          && request.resource.data.groupType == resource.data.groupType
-          && request.resource.data.assigneeIds == resource.data.assigneeIds
-          && request.resource.data.deadline == resource.data.deadline
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isSignedIn()
+        && (
+          isTicketReviewer(resource.data)
+          || (
+            request.auth.uid in resource.data.assigneeIds
+            && request.resource.data.status != 'CLOSED'
+            && request.resource.data.createdBy == resource.data.createdBy
+            && request.resource.data.groupType == resource.data.groupType
+            && request.resource.data.assigneeIds == resource.data.assigneeIds
+            && request.resource.data.deadline == resource.data.deadline
+          )
         );
-      allow delete: if isPD();
+      allow delete: if isSignedIn() && resource.data.createdBy == request.auth.uid;
 
       match /history/{historyId} {
-        allow read: if isPD()
-          || (isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/tickets/$(ticketId)).data.assigneeIds);
-        allow create: if isPD()
-          || (isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/tickets/$(ticketId)).data.assigneeIds);
+        allow read: if isSignedIn();
+        allow create: if isSignedIn();
         allow update: if false;
-        allow delete: if isPD();
+        allow delete: if isSignedIn()
+          && get(/databases/$(database)/documents/tickets/$(ticketId)).data.createdBy == request.auth.uid;
       }
 
       match /attachments/{attachmentId} {
-        allow read: if isPD()
-          || (isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/tickets/$(ticketId)).data.assigneeIds);
-        allow create: if isPD();
+        allow read: if isSignedIn();
+        allow create: if isSignedIn()
+          && get(/databases/$(database)/documents/tickets/$(ticketId)).data.createdBy == request.auth.uid;
         allow update: if false;
-        allow delete: if isPD();
+        allow delete: if isSignedIn()
+          && get(/databases/$(database)/documents/tickets/$(ticketId)).data.createdBy == request.auth.uid;
       }
     }
 
     match /emailLogs/{logId} {
-      allow read: if isPD();
+      allow read: if isSignedIn();
       allow create: if isSignedIn();
       allow update, delete: if false;
     }

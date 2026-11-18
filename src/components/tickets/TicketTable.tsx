@@ -10,14 +10,14 @@ import { UserAvatar } from '../ui/UserAvatar';
 interface TicketTableProps {
   tickets: Ticket[];
   nowMs: number;
-  canDelete?: boolean;
+  canDeleteTicket?: (ticket: Ticket) => boolean;
   onDeleteTicket?: (ticket: Ticket) => void;
 }
 
 export function TicketTable({
   tickets,
   nowMs,
-  canDelete = false,
+  canDeleteTicket,
   onDeleteTicket,
 }: TicketTableProps) {
   return (
@@ -138,7 +138,7 @@ export function TicketTable({
                         <span>Mở</span>
                         <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
                       </Link>
-                      {canDelete && onDeleteTicket && (
+                      {canDeleteTicket?.(ticket) && onDeleteTicket && (
                         <button
                           type="button"
                           onClick={() => onDeleteTicket(ticket)}

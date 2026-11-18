@@ -75,6 +75,9 @@ export interface Ticket {
   createdBy: string;
   createdByName: string;
   createdByEmail: string;
+  reviewerId?: string;
+  reviewerName?: string;
+  reviewerEmail?: string;
   assigneeIds: string[];
   assigneeSnapshots: Record<string, UserSnapshot>;
   createdAt: number;
@@ -131,10 +134,13 @@ export interface CreateTicketInput {
   title: string;
   deadline: number;
   assigneeIds: string[];
+  reviewerId?: string;
   sku?: string;
   editRequirements?: string;
   productBasicInfo?: string;
   additionalRequirements?: string;
+  expectedSku?: string;
+  productUrl?: string;
   officeRequirements?: string;
   attachments?: TicketAttachmentDraft[];
 }

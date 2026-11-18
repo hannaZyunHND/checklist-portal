@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertTriangle, Filter, RotateCcw, Search } from 'lucide-react';
+import { AlertTriangle, Filter, RotateCcw, Search, UserCheck } from 'lucide-react';
 import { ALL_STATUSES } from '../../domain/ticketStats';
 import {
   TICKET_GROUP_LABELS,
@@ -16,24 +16,24 @@ export interface TicketFilterState {
   status: TicketStatus | 'ALL';
   assigneeId: string | 'ALL';
   overdueOnly: boolean;
+  mineOnly: boolean;
 }
 
 interface TicketFilterBarProps {
   filters: TicketFilterState;
   onChange: (next: TicketFilterState) => void;
-  isPD: boolean;
   users: UserProfile[];
 }
 
-export function TicketFilterBar({ filters, onChange, isPD, users }: TicketFilterBarProps) {
+export function TicketFilterBar({ filters, onChange, users }: TicketFilterBarProps) {
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const omUsers = users.filter((u) => u.role === 'OM');
 
   const activeFilterCount =
     (filters.groupType !== 'ALL' ? 1 : 0) +
     (filters.status !== 'ALL' ? 1 : 0) +
-    (isPD && filters.assigneeId !== 'ALL' ? 1 : 0) +
-    (filters.overdueOnly ? 1 : 0);
+    (filters.assigneeId !== 'ALL' ? 1 : 0) +
+    (filters.overdueOnly ? 1 : 0) +
+    (filters.mineOnly ? 1 : 0);
 
   const resetFilters = () =>
     onChange({
@@ -42,6 +42,7 @@ export function TicketFilterBar({ filters, onChange, isPD, users }: TicketFilter
       status: 'ALL',
       assigneeId: 'ALL',
       overdueOnly: false,
+      mineOnly: false,
     });
 
   return (
@@ -110,21 +111,33 @@ export function TicketFilterBar({ filters, onChange, isPD, users }: TicketFilter
             ))}
           </select>
 
-          {isPD && (
-            <select
-              aria-label="Lọc theo nhân sự"
-              value={filters.assigneeId}
-              onChange={(e) => onChange({ ...filters, assigneeId: e.target.value })}
-              className="min-h-[44px] rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
-            >
-              <option value="ALL">Tất cả nhân sự OM</option>
-              {omUsers.map((om) => (
-                <option key={om.uid} value={om.uid}>
-                  {om.displayName}
-                </option>
-              ))}
-            </select>
-          )}
+          <select
+            aria-label="Lọc theo nhân sự"
+            value={filters.assigneeId}
+            onChange={(e) => onChange({ ...filters, assigneeId: e.target.value })}
+            className="min-h-[44px] rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800"
+          >
+            <option value="ALL">Tất cả nhân sự</option>
+            {users.map((member) => (
+              <option key={member.uid} value={member.uid}>
+                {member.displayName} ({member.role})
+              </option>
+            ))}
+          </select>
+
+          <button
+            type="button"
+            onClick={() => onChange({ ...filters, mineOnly: !filters.mineOnly })}
+            aria-pressed={filters.mineOnly}
+            className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition ${
+              filters.mineOnly
+                ? 'border-teal-600 bg-teal-50 text-teal-900'
+                : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            <UserCheck className="h-4 w-4 text-teal-600" aria-hidden="true" />
+            <span>Liên quan tới tôi</span>
+          </button>
 
           <button
             type="button"
@@ -157,6 +170,19 @@ export function TicketFilterBar({ filters, onChange, isPD, users }: TicketFilter
       <div className="flex flex-wrap gap-2 md:hidden">
         <button
           type="button"
+          onClick={() => onChange({ ...filters, mineOnly: !filters.mineOnly })}
+          aria-pressed={filters.mineOnly}
+          className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${
+            filters.mineOnly
+              ? 'border-teal-600 bg-teal-50 text-teal-900'
+              : 'border-slate-200 bg-slate-50 text-slate-700'
+          }`}
+        >
+          <UserCheck className="h-3.5 w-3.5 text-teal-600" aria-hidden="true" />
+          <span>Liên quan tới tôi</span>
+        </button>
+        <button
+          type="button"
           onClick={() => onChange({ ...filters, overdueOnly: !filters.overdueOnly })}
           aria-pressed={filters.overdueOnly}
           className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${
@@ -166,7 +192,7 @@ export function TicketFilterBar({ filters, onChange, isPD, users }: TicketFilter
           }`}
         >
           <AlertTriangle className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
-          <span>Chỉ hiện Quá hạn</span>
+          <span>Quá hạn</span>
         </button>
         {activeFilterCount > 0 && (
           <button
@@ -221,23 +247,31 @@ export function TicketFilterBar({ filters, onChange, isPD, users }: TicketFilter
             </select>
           </div>
 
-          {isPD && (
-            <div>
-              <label className="block text-sm font-medium text-slate-800">Nhân sự OM</label>
-              <select
-                value={filters.assigneeId}
-                onChange={(e) => onChange({ ...filters, assigneeId: e.target.value })}
-                className="mt-1.5 min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900"
-              >
-                <option value="ALL">Tất cả nhân sự OM</option>
-                {omUsers.map((om) => (
-                  <option key={om.uid} value={om.uid}>
-                    {om.displayName}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          <div>
+            <label className="block text-sm font-medium text-slate-800">Nhân sự được giao</label>
+            <select
+              value={filters.assigneeId}
+              onChange={(e) => onChange({ ...filters, assigneeId: e.target.value })}
+              className="mt-1.5 min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900"
+            >
+              <option value="ALL">Tất cả nhân sự</option>
+              {users.map((member) => (
+                <option key={member.uid} value={member.uid}>
+                  {member.displayName} ({member.role})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <label className="flex min-h-[44px] items-center gap-2.5 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm font-medium text-teal-900">
+            <input
+              type="checkbox"
+              checked={filters.mineOnly}
+              onChange={(e) => onChange({ ...filters, mineOnly: e.target.checked })}
+              className="h-4 w-4 accent-teal-600"
+            />
+            <span>Chỉ hiển thị task liên quan tới tôi</span>
+          </label>
 
           <label className="flex min-h-[44px] items-center gap-2.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
             <input

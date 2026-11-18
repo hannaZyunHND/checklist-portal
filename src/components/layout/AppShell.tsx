@@ -101,7 +101,9 @@ export function AppShell({ children, overdueCount = 0, onOpenCreateTicket }: App
 
           <div className="hidden items-center gap-2 lg:flex">
             <span className="text-xs font-medium text-slate-500">
-              {isPD ? 'Chế độ Quản lý (Xem toàn team)' : 'Chế độ Thực hiện (Task được giao)'}
+              {isPD
+                ? 'Tài khoản PD · Quản lý & Duyệt công việc'
+                : 'Tài khoản OM · Thực hiện & Tạo Listing'}
             </span>
           </div>
 
@@ -116,7 +118,7 @@ export function AppShell({ children, overdueCount = 0, onOpenCreateTicket }: App
               </NavLink>
             )}
 
-            {isPD && onOpenCreateTicket && (
+            {onOpenCreateTicket && (
               <button
                 type="button"
                 onClick={onOpenCreateTicket}

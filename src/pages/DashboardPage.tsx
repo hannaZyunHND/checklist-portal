@@ -35,7 +35,6 @@ export function DashboardPage({ tickets, users, nowMs }: DashboardPageProps) {
   const { userProfile } = useAuth();
   if (!userProfile) return null;
 
-  const isPD = userProfile.role === 'PD';
   const stats = useMemo(
     () => computeStatistics(tickets, users, userProfile, nowMs),
     [tickets, users, userProfile, nowMs]
@@ -68,12 +67,10 @@ export function DashboardPage({ tickets, users, nowMs }: DashboardPageProps) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-slate-900 md:text-2xl">
-            {isPD ? 'Tổng quan & Thống kê Team' : 'Bảng điều khiển cá nhân'}
+            Tổng quan &amp; Thống kê Team
           </h1>
           <p className="mt-0.5 text-sm text-slate-600">
-            {isPD
-              ? 'Theo dõi số lượng task theo trạng thái của từng nhân sự và toàn team.'
-              : 'Các task được giao cho bạn và cảnh báo deadline cần ưu tiên.'}
+            Theo dõi số lượng task theo trạng thái của từng nhân sự, toàn team và cảnh báo deadline.
           </p>
         </div>
         <Link
@@ -154,7 +151,7 @@ export function DashboardPage({ tickets, users, nowMs }: DashboardPageProps) {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
         <div className="rounded-xl border border-slate-200 bg-white p-4 md:p-5 lg:col-span-3">
           <h2 className="text-base font-semibold text-slate-900">
-            {isPD ? 'Tổng số Task theo từng trạng thái (Toàn team)' : 'Task của bạn theo trạng thái'}
+            Tổng số Task theo từng trạng thái (Toàn team)
           </h2>
           <div className="mt-4 h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -201,99 +198,97 @@ export function DashboardPage({ tickets, users, nowMs }: DashboardPageProps) {
         </div>
       </div>
 
-      {/* PD Only: Per-Staff Breakdown Matrix */}
-      {isPD && (
-        <div className="rounded-xl border border-slate-200 bg-white p-4 md:p-5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h2 className="text-base font-semibold text-slate-900">
-                Thống kê Task theo từng nhân sự OM
-              </h2>
-              <p className="text-xs text-slate-500">
-                Nhấn vào nhân sự để lọc danh sách công việc của nhân sự đó.
-              </p>
-            </div>
-          </div>
-
-          {stats.byStaff.length === 0 ? (
-            <p className="py-6 text-center text-sm text-slate-500">
-              Chưa có nhân sự OM nào được giao việc.
+      {/* Per-Staff Breakdown Matrix */}
+      <div className="rounded-xl border border-slate-200 bg-white p-4 md:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">
+              Thống kê Task theo từng nhân sự
+            </h2>
+            <p className="text-xs text-slate-500">
+              Nhấn vào nhân sự để lọc danh sách công việc được giao cho nhân sự đó.
             </p>
-          ) : (
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full border-collapse text-left text-xs md:text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-600">
-                    <th className="px-3 py-2.5 font-semibold">Nhân sự</th>
-                    <th className="px-3 py-2.5 text-center font-semibold">Tổng</th>
-                    <th className="px-3 py-2.5 text-center font-semibold text-amber-800">
-                      Overdue
-                    </th>
-                    <th className="px-3 py-2.5 text-center font-semibold">Chờ OM</th>
-                    <th className="px-3 py-2.5 text-center font-semibold">Chờ Listing</th>
-                    <th className="px-3 py-2.5 text-center font-semibold">Chờ GoLive</th>
-                    <th className="px-3 py-2.5 text-center font-semibold">Chờ PD duyệt</th>
-                    <th className="px-3 py-2.5 text-center font-semibold">Đã đóng</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {stats.byStaff.map((staff) => {
-                    const pendingPd =
-                      staff.byStatus.PENDING_PD_CHECK +
-                      staff.byStatus.PENDING_GOLIVE_APPROVAL +
-                      staff.byStatus.PENDING_CLOSE;
-                    return (
-                      <tr key={staff.uid} className="hover:bg-slate-50">
-                        <td className="px-3 py-3">
-                          <Link
-                            to={`/tickets?assignee=${staff.uid}`}
-                            className="flex items-center gap-2.5 font-medium text-slate-900 hover:text-teal-700"
-                          >
-                            <UserAvatar
-                              name={staff.displayName}
-                              avatarDataUrl={staff.avatarDataUrl}
-                              size="sm"
-                            />
-                            <div className="min-w-0">
-                              <div className="truncate font-semibold">{staff.displayName}</div>
-                              <div className="truncate text-[11px] text-slate-500">{staff.email}</div>
-                            </div>
-                          </Link>
-                        </td>
-                        <td className="font-mono-code px-3 py-3 text-center font-bold text-slate-900">
-                          {staff.total}
-                        </td>
-                        <td className="font-mono-code px-3 py-3 text-center">
-                          {staff.overdue > 0 ? (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900">
-                              {staff.overdue}
-                            </span>
-                          ) : (
-                            <span className="text-slate-400">0</span>
-                          )}
-                        </td>
-                        <td className="font-mono-code px-3 py-3 text-center">
-                          {staff.byStatus.WAITING_OM}
-                        </td>
-                        <td className="font-mono-code px-3 py-3 text-center">
-                          {staff.byStatus.WAITING_LISTING}
-                        </td>
-                        <td className="font-mono-code px-3 py-3 text-center">
-                          {staff.byStatus.WAITING_GOLIVE}
-                        </td>
-                        <td className="font-mono-code px-3 py-3 text-center">{pendingPd}</td>
-                        <td className="font-mono-code px-3 py-3 text-center font-semibold text-emerald-700">
-                          {staff.byStatus.CLOSED}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+          </div>
         </div>
-      )}
+
+        {stats.byStaff.length === 0 ? (
+          <p className="py-6 text-center text-sm text-slate-500">
+            Chưa có nhân sự nào được giao việc.
+          </p>
+        ) : (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full border-collapse text-left text-xs md:text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50 text-slate-600">
+                  <th className="px-3 py-2.5 font-semibold">Nhân sự</th>
+                  <th className="px-3 py-2.5 text-center font-semibold">Tổng</th>
+                  <th className="px-3 py-2.5 text-center font-semibold text-amber-800">
+                    Overdue
+                  </th>
+                  <th className="px-3 py-2.5 text-center font-semibold">Chờ xử lý</th>
+                  <th className="px-3 py-2.5 text-center font-semibold">Chờ Listing</th>
+                  <th className="px-3 py-2.5 text-center font-semibold">Chờ GoLive</th>
+                  <th className="px-3 py-2.5 text-center font-semibold">Chờ PD duyệt</th>
+                  <th className="px-3 py-2.5 text-center font-semibold">Đã đóng</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {stats.byStaff.map((staff) => {
+                  const pendingPd =
+                    staff.byStatus.PENDING_PD_CHECK +
+                    staff.byStatus.PENDING_GOLIVE_APPROVAL +
+                    staff.byStatus.PENDING_CLOSE;
+                  return (
+                    <tr key={staff.uid} className="hover:bg-slate-50">
+                      <td className="px-3 py-3">
+                        <Link
+                          to={`/tickets?assignee=${staff.uid}`}
+                          className="flex items-center gap-2.5 font-medium text-slate-900 hover:text-teal-700"
+                        >
+                          <UserAvatar
+                            name={staff.displayName}
+                            avatarDataUrl={staff.avatarDataUrl}
+                            size="sm"
+                          />
+                          <div className="min-w-0">
+                            <div className="truncate font-semibold">{staff.displayName}</div>
+                            <div className="truncate text-[11px] text-slate-500">{staff.email}</div>
+                          </div>
+                        </Link>
+                      </td>
+                      <td className="font-mono-code px-3 py-3 text-center font-bold text-slate-900">
+                        {staff.total}
+                      </td>
+                      <td className="font-mono-code px-3 py-3 text-center">
+                        {staff.overdue > 0 ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900">
+                            {staff.overdue}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">0</span>
+                        )}
+                      </td>
+                      <td className="font-mono-code px-3 py-3 text-center">
+                        {staff.byStatus.WAITING_OM}
+                      </td>
+                      <td className="font-mono-code px-3 py-3 text-center">
+                        {staff.byStatus.WAITING_LISTING}
+                      </td>
+                      <td className="font-mono-code px-3 py-3 text-center">
+                        {staff.byStatus.WAITING_GOLIVE}
+                      </td>
+                      <td className="font-mono-code px-3 py-3 text-center">{pendingPd}</td>
+                      <td className="font-mono-code px-3 py-3 text-center font-semibold text-emerald-700">
+                        {staff.byStatus.CLOSED}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* Priority Open Tasks */}
       <div className="rounded-xl border border-slate-200 bg-white p-4 md:p-5">
