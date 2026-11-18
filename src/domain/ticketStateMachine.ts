@@ -92,6 +92,10 @@ export function validateCreateTicketInput(
 ): ValidationResult {
   const errors: Record<string, string> = {};
 
+  if (creatorRole === 'OM' && input.groupType !== 'NEW_LISTING') {
+    errors.groupType = 'Tài khoản OM chỉ được tạo ticket nhóm Listing sản phẩm mới.';
+  }
+
   if (!input.title.trim()) {
     errors.title = 'Vui lòng nhập tiêu đề ticket.';
   }

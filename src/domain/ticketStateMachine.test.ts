@@ -91,6 +91,35 @@ describe('Create Ticket Validation & OM Listing Auto-Pass', () => {
     expect(res.errors.editRequirements).toBeTruthy();
   });
 
+  it('blocks OM from creating EDIT_OLD or OFFICE tickets', () => {
+    const editRes = validateCreateTicketInput(
+      {
+        groupType: 'EDIT_OLD',
+        title: 'Test',
+        sku: 'SKU-1',
+        editRequirements: 'Req',
+        deadline: 999999,
+        assigneeIds: [om1.uid],
+      },
+      'OM'
+    );
+    expect(editRes.valid).toBe(false);
+    expect(editRes.errors.groupType).toBeTruthy();
+
+    const officeRes = validateCreateTicketInput(
+      {
+        groupType: 'OFFICE',
+        title: 'Test VP',
+        officeRequirements: 'Req',
+        deadline: 999999,
+        assigneeIds: [om1.uid],
+      },
+      'OM'
+    );
+    expect(officeRes.valid).toBe(false);
+    expect(officeRes.errors.groupType).toBeTruthy();
+  });
+
   it('requires expectedSku, productUrl, and assigned PD reviewer when OM creates NEW_LISTING and auto-passes listing step', () => {
     const missing = validateCreateTicketInput(
       {

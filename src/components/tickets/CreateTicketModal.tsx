@@ -53,6 +53,10 @@ export function CreateTicketModal({ open, onClose, users, onCreated }: CreateTic
   const { userProfile } = useAuth();
   const pdUsers = useMemo(() => users.filter((u) => u.role === 'PD'), [users]);
   const isOM = userProfile?.role === 'OM';
+  const visibleGroupOptions = useMemo(
+    () => (isOM ? GROUP_OPTIONS.filter((opt) => opt.type === 'NEW_LISTING') : GROUP_OPTIONS),
+    [isOM]
+  );
 
   const [groupType, setGroupType] = useState<TicketGroupType>(() =>
     userProfile?.role === 'OM' ? 'NEW_LISTING' : 'EDIT_OLD'
@@ -79,6 +83,9 @@ export function CreateTicketModal({ open, onClose, users, onCreated }: CreateTic
 
   useEffect(() => {
     if (open && userProfile) {
+      if (userProfile.role === 'OM' && groupType !== 'NEW_LISTING') {
+        setGroupType('NEW_LISTING');
+      }
       if (userProfile.role === 'OM' && groupType === 'NEW_LISTING' && assigneeIds.length === 0) {
         setAssigneeIds([userProfile.uid]);
       }
@@ -202,8 +209,12 @@ export function CreateTicketModal({ open, onClose, users, onCreated }: CreateTic
           <span className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
             Nhóm công việc (*)
           </span>
-          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-            {GROUP_OPTIONS.map((opt) => {
+          <div
+            className={`mt-2 grid grid-cols-1 gap-2 ${
+              visibleGroupOptions.length > 1 ? 'sm:grid-cols-3' : ''
+            }`}
+          >
+            {visibleGroupOptions.map((opt) => {
               const Icon = opt.Icon;
               const active = groupType === opt.type;
               return (
