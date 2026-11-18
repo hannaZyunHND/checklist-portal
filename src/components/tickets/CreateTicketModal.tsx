@@ -135,12 +135,14 @@ export function CreateTicketModal({ open, onClose, users, onCreated }: CreateTic
 
     const effectiveReviewerId =
       groupType === 'NEW_LISTING' && isOM ? reviewerId : reviewerId || userProfile.uid;
+    const effectiveAssigneeIds =
+      groupType === 'NEW_LISTING' && isOM ? [userProfile.uid] : assigneeIds;
 
     const input: CreateTicketInput = {
       groupType,
       title,
       deadline: parseDatetimeLocalVietnam(deadlineStr),
-      assigneeIds,
+      assigneeIds: effectiveAssigneeIds,
       reviewerId: effectiveReviewerId,
       sku,
       editRequirements,
@@ -470,81 +472,81 @@ export function CreateTicketModal({ open, onClose, users, onCreated }: CreateTic
           </div>
         )}
 
-        {/* Assignees (Any member: PD or OM) */}
-        <div>
-          <label htmlFor="field-assigneeIds" className="block text-sm font-medium text-slate-800">
-            {isOmListingMode
-              ? 'Nhân sự thực hiện bước GoLive (mặc định chính bạn)'
-              : groupType === 'OFFICE'
-              ? 'Các nhân sự được giao (chọn 1 hoặc nhiều)'
-              : 'Nhân sự được giao thực hiện (chọn 1)'}{' '}
-            <span className="text-red-600">*</span>
-          </label>
+        {/* Assignees (Any member: PD or OM; hidden when OM creates NEW_LISTING as OM is always the GoLive executor) */}
+        {!isOmListingMode && (
+          <div>
+            <label htmlFor="field-assigneeIds" className="block text-sm font-medium text-slate-800">
+              {groupType === 'OFFICE'
+                ? 'Các nhân sự được giao (chọn 1 hoặc nhiều)'
+                : 'Nhân sự được giao thực hiện (chọn 1)'}{' '}
+              <span className="text-red-600">*</span>
+            </label>
 
-          {users.length === 0 ? (
-            <div className="mt-1.5 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
-              Chưa có thành viên nào trong hệ thống.
-            </div>
-          ) : groupType === 'OFFICE' ? (
-            <div
-              id="field-assigneeIds"
-              tabIndex={-1}
-              className="mt-1.5 max-h-48 space-y-1.5 overflow-y-auto rounded-lg border border-slate-300 bg-slate-50 p-2"
-            >
-              {users.map((member) => {
-                const checked = assigneeIds.includes(member.uid);
-                return (
-                  <label
-                    key={member.uid}
-                    className={`flex min-h-[44px] items-center gap-3 rounded-lg border px-3 py-2 transition ${
-                      checked
-                        ? 'border-teal-500 bg-white'
-                        : 'border-transparent bg-white/60 hover:bg-white'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleOfficeAssignee(member.uid)}
-                      className="h-4 w-4 accent-teal-600"
-                    />
-                    <UserAvatar
-                      name={member.displayName}
-                      avatarDataUrl={member.avatarDataUrl}
-                      size="xs"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium text-slate-900">
-                        {member.displayName}{' '}
-                        <span className="text-xs font-semibold text-teal-700">({member.role})</span>
+            {users.length === 0 ? (
+              <div className="mt-1.5 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+                Chưa có thành viên nào trong hệ thống.
+              </div>
+            ) : groupType === 'OFFICE' ? (
+              <div
+                id="field-assigneeIds"
+                tabIndex={-1}
+                className="mt-1.5 max-h-48 space-y-1.5 overflow-y-auto rounded-lg border border-slate-300 bg-slate-50 p-2"
+              >
+                {users.map((member) => {
+                  const checked = assigneeIds.includes(member.uid);
+                  return (
+                    <label
+                      key={member.uid}
+                      className={`flex min-h-[44px] items-center gap-3 rounded-lg border px-3 py-2 transition ${
+                        checked
+                          ? 'border-teal-500 bg-white'
+                          : 'border-transparent bg-white/60 hover:bg-white'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleOfficeAssignee(member.uid)}
+                        className="h-4 w-4 accent-teal-600"
+                      />
+                      <UserAvatar
+                        name={member.displayName}
+                        avatarDataUrl={member.avatarDataUrl}
+                        size="xs"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-slate-900">
+                          {member.displayName}{' '}
+                          <span className="text-xs font-semibold text-teal-700">({member.role})</span>
+                        </div>
+                        <div className="truncate text-xs text-slate-500">{member.email}</div>
                       </div>
-                      <div className="truncate text-xs text-slate-500">{member.email}</div>
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-          ) : (
-            <select
-              id="field-assigneeIds"
-              value={assigneeIds[0] || ''}
-              onChange={(e) => setAssigneeIds(e.target.value ? [e.target.value] : [])}
-              className="mt-1.5 min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 md:text-sm"
-            >
-              <option value="">-- Chọn nhân sự được giao --</option>
-              {users.map((member) => (
-                <option key={member.uid} value={member.uid}>
-                  {member.displayName} ({member.role} · {member.email})
-                </option>
-              ))}
-            </select>
-          )}
-          {errors.assigneeIds && (
-            <p id="err-assigneeIds" className="mt-1 text-xs text-red-600">
-              {errors.assigneeIds}
-            </p>
-          )}
-        </div>
+                    </label>
+                  );
+                })}
+              </div>
+            ) : (
+              <select
+                id="field-assigneeIds"
+                value={assigneeIds[0] || ''}
+                onChange={(e) => setAssigneeIds(e.target.value ? [e.target.value] : [])}
+                className="mt-1.5 min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 md:text-sm"
+              >
+                <option value="">-- Chọn nhân sự được giao --</option>
+                {users.map((member) => (
+                  <option key={member.uid} value={member.uid}>
+                    {member.displayName} ({member.role} · {member.email})
+                  </option>
+                ))}
+              </select>
+            )}
+            {errors.assigneeIds && (
+              <p id="err-assigneeIds" className="mt-1 text-xs text-red-600">
+                {errors.assigneeIds}
+              </p>
+            )}
+          </div>
+        )}
 
         <div className="flex flex-col-reverse gap-2 border-t border-slate-200 pt-4 sm:flex-row sm:justify-end">
           <button
