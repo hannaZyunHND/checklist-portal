@@ -93,9 +93,14 @@ export function TicketCardList({ tickets, nowMs }: TicketCardListProps) {
                 </span>
               </div>
 
-              <div className="flex items-center gap-1 text-xs text-slate-600">
-                <CalendarClock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span className="font-mono-code">{formatVietnamDateTime(ticket.deadline)}</span>
+              <div className="text-right text-xs text-slate-600">
+                <div className="flex items-center justify-end gap-1">
+                  <CalendarClock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span className="font-mono-code">Hạn: {formatVietnamDateTime(ticket.deadline)}</span>
+                </div>
+                <div className="font-mono-code mt-0.5 text-[11px] text-slate-400">
+                  Tạo: {formatVietnamDateTime(ticket.createdAt)}
+                </div>
               </div>
             </div>
 

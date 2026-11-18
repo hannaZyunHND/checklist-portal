@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowLeft,
   CalendarClock,
   CheckCircle2,
+  Clock,
   Download,
   ExternalLink,
   FileSpreadsheet,
@@ -12,6 +13,7 @@ import {
   Mail,
   Paperclip,
   RefreshCw,
+  Trash2,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { isTicketOverdue } from '../domain/ticketStats';
@@ -22,6 +24,7 @@ import {
   resolveAttachmentViewUrl,
 } from '../services/r2Service';
 import {
+  deleteTicket,
   subscribeTicketAttachments,
   subscribeTicketDetail,
   subscribeTicketHistory,
@@ -34,6 +37,7 @@ import {
   type TicketHistoryEntry,
 } from '../types/ticket';
 import { formatOverdueDuration, formatVietnamDateTime } from '../utils/dateTime';
+import { DeleteTicketModal } from '../components/tickets/DeleteTicketModal';
 import { ImageLightbox, type LightboxImageItem } from '../components/tickets/ImageLightbox';
 import { TicketActionPanel } from '../components/tickets/TicketActionPanel';
 import { TicketHistoryTimeline } from '../components/tickets/TicketHistoryTimeline';
@@ -43,7 +47,9 @@ import { UserAvatar } from '../components/ui/UserAvatar';
 
 export function TicketDetailPage({ nowMs }: { nowMs: number }) {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { userProfile } = useAuth();
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [history, setHistory] = useState<TicketHistoryEntry[]>([]);
   const [attachments, setAttachments] = useState<TicketAttachment[]>([]);
@@ -154,7 +160,7 @@ export function TicketDetailPage({ nowMs }: { nowMs: number }) {
 
   return (
     <div className="space-y-5">
-      <div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <Link
           to="/tickets"
           className="inline-flex min-h-[40px] items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-teal-700"
@@ -162,6 +168,17 @@ export function TicketDetailPage({ nowMs }: { nowMs: number }) {
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           <span>Quay lại danh sách công việc</span>
         </Link>
+
+        {userProfile.role === 'PD' && (
+          <button
+            type="button"
+            onClick={() => setDeleteModalOpen(true)}
+            className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50"
+          >
+            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Xóa Ticket</span>
+          </button>
+        )}
       </div>
 
       {feedback && (
@@ -219,7 +236,7 @@ export function TicketDetailPage({ nowMs }: { nowMs: number }) {
 
         <TicketStepper ticket={ticket} />
 
-        <div className="grid grid-cols-1 gap-4 border-t border-slate-100 pt-4 text-sm sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 border-t border-slate-100 pt-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <div className="text-xs text-slate-500">Nhóm nghiệp vụ</div>
             <div className="mt-0.5 font-medium text-slate-900">
@@ -230,6 +247,13 @@ export function TicketDetailPage({ nowMs }: { nowMs: number }) {
             <div className="text-xs text-slate-500">Người tạo (PD)</div>
             <div className="mt-0.5 font-medium text-slate-900">{ticket.createdByName}</div>
             <div className="text-xs text-slate-500">{ticket.createdByEmail}</div>
+          </div>
+          <div>
+            <div className="text-xs text-slate-500">Thời gian tạo</div>
+            <div className="font-mono-code mt-0.5 flex items-center gap-1.5 font-medium text-slate-800">
+              <Clock className="h-4 w-4 text-slate-400" aria-hidden="true" />
+              <span>{formatVietnamDateTime(ticket.createdAt)}</span>
+            </div>
           </div>
           <div>
             <div className="text-xs text-slate-500">Deadline</div>
@@ -510,6 +534,15 @@ export function TicketDetailPage({ nowMs }: { nowMs: number }) {
         activeIndex={lightboxIndex}
         onClose={() => setLightboxIndex(null)}
         onNavigate={setLightboxIndex}
+      />
+
+      <DeleteTicketModal
+        ticket={deleteModalOpen ? ticket : null}
+        onClose={() => setDeleteModalOpen(false)}
+        onConfirmDelete={async (target) => {
+          await deleteTicket(target.id, userProfile);
+          navigate('/tickets');
+        }}
       />
     </div>
   );

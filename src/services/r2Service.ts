@@ -118,7 +118,7 @@ function formatAmzDate(date: Date): { amzDate: string; dateStamp: string } {
 }
 
 export async function createR2PresignedUrl(params: {
-  method: 'GET' | 'PUT';
+  method: 'GET' | 'PUT' | 'DELETE';
   key: string;
   endpoint?: string;
   bucket?: string;
@@ -278,4 +278,29 @@ export async function resolveAttachmentViewUrl(att: TicketAttachment): Promise<s
   }
 
   return att.url || '';
+}
+
+export async function deleteFileFromR2(r2Key: string): Promise<void> {
+  if (!r2Key) return;
+  try {
+    if (r2Config.workerUrl) {
+      await fetch(`${r2Config.workerUrl}/file/${encodeObjectPath(r2Key)}`, {
+        method: 'DELETE',
+        headers: r2Config.workerSecret ? { 'X-Worker-Secret': r2Config.workerSecret } : {},
+      });
+      return;
+    }
+
+    if (r2Config.endpoint && r2Config.bucket && r2Config.accessKey && r2Config.secretKey) {
+      const delUrl = await createR2PresignedUrl({
+        method: 'DELETE',
+        key: r2Key,
+        expiresSeconds: 300,
+        useDevProxy: import.meta.env.DEV,
+      });
+      await fetch(delUrl, { method: 'DELETE' });
+    }
+  } catch {
+    // Best-effort cleanup; never block ticket deletion if R2 object is already absent
+  }
 }

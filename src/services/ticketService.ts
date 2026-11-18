@@ -2,11 +2,13 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
   runTransaction,
   where,
+  writeBatch,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import {
@@ -26,7 +28,7 @@ import type {
 } from '../types/ticket';
 import type { UserProfile, UserSnapshot } from '../types/user';
 import { dispatchTicketEmail, type AppEmailConfig, type EmailDispatchResult } from './emailService';
-import { uploadFileToR2 } from './r2Service';
+import { deleteFileFromR2, uploadFileToR2 } from './r2Service';
 
 function buildSnapshots(assigneeIds: string[], users: UserProfile[]): Record<string, UserSnapshot> {
   const map: Record<string, UserSnapshot> = {};
@@ -360,4 +362,37 @@ export async function performTicketTransition(params: {
   }
 
   return { nextTicket: updatedTicket, emailResult };
+}
+
+export async function deleteTicket(ticketId: string, actor: UserProfile): Promise<void> {
+  if (actor.role !== 'PD') {
+    throw new Error('Chỉ tài khoản PD mới có quyền xóa ticket.');
+  }
+
+  const ticketRef = doc(db, 'tickets', ticketId);
+  const [historySnap, attachmentsSnap] = await Promise.all([
+    getDocs(collection(db, 'tickets', ticketId, 'history')),
+    getDocs(collection(db, 'tickets', ticketId, 'attachments')),
+  ]);
+
+  const r2Keys = attachmentsSnap.docs
+    .map((d) => (d.data() as { r2Key?: string }).r2Key)
+    .filter((k): k is string => Boolean(k));
+
+  const refsToDelete = [
+    ...historySnap.docs.map((d) => d.ref),
+    ...attachmentsSnap.docs.map((d) => d.ref),
+    ticketRef,
+  ];
+
+  // Firestore batch limit is 500 operations
+  for (let i = 0; i < refsToDelete.length; i += 450) {
+    const batch = writeBatch(db);
+    for (const ref of refsToDelete.slice(i, i + 450)) {
+      batch.delete(ref);
+    }
+    await batch.commit();
+  }
+
+  await Promise.all(r2Keys.map((key) => deleteFileFromR2(key)));
 }

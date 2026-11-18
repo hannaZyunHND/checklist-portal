@@ -16,7 +16,7 @@ const MAX_BYTES = 5 * 1024 * 1024; // 5MB
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, X-Worker-Secret, X-File-Name',
 };
 
@@ -72,6 +72,20 @@ export default {
       headers.set('etag', obj.httpEtag);
       headers.set('Cache-Control', 'public, max-age=31536000, immutable');
       return new Response(obj.body, { headers });
+    }
+
+    // DELETE /file/<key>
+    if (request.method === 'DELETE' && url.pathname.startsWith('/file/')) {
+      const secret = request.headers.get('X-Worker-Secret') || '';
+      if (env.WORKER_SECRET && secret !== env.WORKER_SECRET) {
+        return json({ ok: false, error: 'Unauthorized' }, 401);
+      }
+      const key = decodeURIComponent(url.pathname.slice('/file/'.length));
+      if (!key || !key.startsWith('tickets/')) {
+        return json({ ok: false, error: 'Invalid object key' }, 400);
+      }
+      await env.BUCKET.delete(key);
+      return json({ ok: true, deleted: key }, 200);
     }
 
     return new Response('Joytime R2 Proxy OK', { status: 200, headers: corsHeaders });

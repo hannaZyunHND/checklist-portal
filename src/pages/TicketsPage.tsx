@@ -3,8 +3,10 @@ import { useSearchParams } from 'react-router-dom';
 import { ClipboardList, Plus } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { isTicketOverdue } from '../domain/ticketStats';
+import { deleteTicket } from '../services/ticketService';
 import type { Ticket, TicketGroupType, TicketStatus } from '../types/ticket';
 import type { UserProfile } from '../types/user';
+import { DeleteTicketModal } from '../components/tickets/DeleteTicketModal';
 import { TicketCardList } from '../components/tickets/TicketCardList';
 import { TicketFilterBar, type TicketFilterState } from '../components/tickets/TicketFilterBar';
 import { TicketTable } from '../components/tickets/TicketTable';
@@ -20,6 +22,7 @@ export function TicketsPage({ tickets, users, nowMs, onOpenCreateTicket }: Ticke
   const { userProfile } = useAuth();
   const [searchParams] = useSearchParams();
   const isPD = userProfile?.role === 'PD';
+  const [ticketToDelete, setTicketToDelete] = useState<Ticket | null>(null);
 
   const [filters, setFilters] = useState<TicketFilterState>(() => ({
     search: '',
@@ -109,10 +112,24 @@ export function TicketsPage({ tickets, users, nowMs, onOpenCreateTicket }: Ticke
         </div>
       ) : (
         <>
-          <TicketTable tickets={filteredTickets} nowMs={nowMs} />
+          <TicketTable
+            tickets={filteredTickets}
+            nowMs={nowMs}
+            canDelete={Boolean(isPD)}
+            onDeleteTicket={setTicketToDelete}
+          />
           <TicketCardList tickets={filteredTickets} nowMs={nowMs} />
         </>
       )}
+
+      <DeleteTicketModal
+        ticket={ticketToDelete}
+        onClose={() => setTicketToDelete(null)}
+        onConfirmDelete={async (target) => {
+          if (!userProfile) return;
+          await deleteTicket(target.id, userProfile);
+        }}
+      />
     </div>
   );
 }

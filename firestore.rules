@@ -74,21 +74,23 @@ service cloud.firestore {
           && request.resource.data.assigneeIds == resource.data.assigneeIds
           && request.resource.data.deadline == resource.data.deadline
         );
-      allow delete: if false;
+      allow delete: if isPD();
 
       match /history/{historyId} {
         allow read: if isPD()
           || (isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/tickets/$(ticketId)).data.assigneeIds);
         allow create: if isPD()
           || (isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/tickets/$(ticketId)).data.assigneeIds);
-        allow update, delete: if false;
+        allow update: if false;
+        allow delete: if isPD();
       }
 
       match /attachments/{attachmentId} {
         allow read: if isPD()
           || (isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/tickets/$(ticketId)).data.assigneeIds);
         allow create: if isPD();
-        allow update, delete: if false;
+        allow update: if false;
+        allow delete: if isPD();
       }
     }
 

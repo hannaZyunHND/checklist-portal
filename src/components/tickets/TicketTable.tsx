@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { ChevronRight, Paperclip } from 'lucide-react';
+import { ChevronRight, Paperclip, Trash2 } from 'lucide-react';
 import { getOfficeProgress } from '../../domain/ticketStateMachine';
 import { isTicketOverdue } from '../../domain/ticketStats';
 import type { Ticket } from '../../types/ticket';
@@ -10,9 +10,16 @@ import { UserAvatar } from '../ui/UserAvatar';
 interface TicketTableProps {
   tickets: Ticket[];
   nowMs: number;
+  canDelete?: boolean;
+  onDeleteTicket?: (ticket: Ticket) => void;
 }
 
-export function TicketTable({ tickets, nowMs }: TicketTableProps) {
+export function TicketTable({
+  tickets,
+  nowMs,
+  canDelete = false,
+  onDeleteTicket,
+}: TicketTableProps) {
   return (
     <div className="hidden overflow-hidden rounded-xl border border-slate-200 bg-white md:block">
       <div className="overflow-x-auto">
@@ -20,11 +27,12 @@ export function TicketTable({ tickets, nowMs }: TicketTableProps) {
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600">
               <th className="px-4 py-3">Mã ID</th>
-              <th className="px-4 py-3">Nhóm & Tiêu đề</th>
+              <th className="px-4 py-3">Nhóm &amp; Tiêu đề</th>
               <th className="px-4 py-3">Nhân sự giao</th>
+              <th className="px-4 py-3">Thời gian tạo</th>
               <th className="px-4 py-3">Deadline</th>
               <th className="px-4 py-3">Trạng thái</th>
-              <th className="px-4 py-3 text-right">Chi tiết</th>
+              <th className="px-4 py-3 text-right">Thao tác</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
@@ -104,6 +112,11 @@ export function TicketTable({ tickets, nowMs }: TicketTableProps) {
                     </div>
                   </td>
                   <td className="px-4 py-3.5 align-top">
+                    <div className="font-mono-code text-xs text-slate-600">
+                      {formatVietnamDateTime(ticket.createdAt)}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3.5 align-top">
                     <div className="font-mono-code text-xs font-medium text-slate-800">
                       {formatVietnamDateTime(ticket.deadline)}
                     </div>
@@ -117,13 +130,26 @@ export function TicketTable({ tickets, nowMs }: TicketTableProps) {
                     <TicketStatusBadge status={ticket.status} />
                   </td>
                   <td className="px-4 py-3.5 text-right align-top">
-                    <Link
-                      to={`/tickets/${ticket.id}`}
-                      className="inline-flex min-h-[36px] items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                    >
-                      <span>Mở</span>
-                      <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
-                    </Link>
+                    <div className="inline-flex items-center justify-end gap-1.5">
+                      <Link
+                        to={`/tickets/${ticket.id}`}
+                        className="inline-flex min-h-[36px] items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                      >
+                        <span>Mở</span>
+                        <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+                      </Link>
+                      {canDelete && onDeleteTicket && (
+                        <button
+                          type="button"
+                          onClick={() => onDeleteTicket(ticket)}
+                          aria-label={`Xóa ticket ${ticket.code}`}
+                          title={`Xóa ticket ${ticket.code}`}
+                          className="inline-flex min-h-[36px] min-w-[36px] items-center justify-center rounded-lg border border-red-200 bg-white px-2 text-red-600 transition hover:bg-red-50"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );
