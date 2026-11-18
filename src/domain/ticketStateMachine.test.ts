@@ -285,11 +285,13 @@ describe('Group III (OFFICE) Multi-Assignee & Selective Rework', () => {
     const s1 = computeTransitionResult(ticket, om1, 'OM_COMPLETE', {}, 2000);
     expect(s1.nextStatus).toBe('WAITING_OM');
     expect(s1.emailPlan).toBeNull();
+    expect(s1.ticketPatch.assigneeStates?.[om1.uid]).not.toHaveProperty('note');
 
     ticket = { ...ticket, ...s1.ticketPatch };
     const s2 = computeTransitionResult(ticket, pd2, 'OM_COMPLETE', {}, 3000);
     expect(s2.nextStatus).toBe('PENDING_PD_CHECK');
     expect(s2.emailPlan?.recipients).toEqual([pd1.email]);
+    expect(s2.ticketPatch.assigneeStates?.[pd2.uid]).not.toHaveProperty('note');
 
     ticket = { ...ticket, ...s2.ticketPatch };
     const s3 = computeTransitionResult(
@@ -301,6 +303,7 @@ describe('Group III (OFFICE) Multi-Assignee & Selective Rework', () => {
     );
     expect(s3.nextStatus).toBe('WAITING_OM');
     expect(s3.ticketPatch.assigneeStates?.[om1.uid]?.completed).toBe(false);
+    expect(s3.ticketPatch.assigneeStates?.[om1.uid]).not.toHaveProperty('note');
     expect(s3.ticketPatch.assigneeStates?.[pd2.uid]?.completed).toBe(true);
     expect(s3.emailPlan?.recipients).toEqual([om1.email]);
   });

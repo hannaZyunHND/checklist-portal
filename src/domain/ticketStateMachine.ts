@@ -400,7 +400,7 @@ export function computeTransitionResult(
       nextStates[actor.uid] = {
         completed: true,
         completedAt: nowMs,
-        note: trimmedNote,
+        ...(trimmedNote ? { note: trimmedNote } : {}),
         reworkRequestedAt: null,
       };
 
@@ -435,10 +435,11 @@ export function computeTransitionResult(
       const nextStates: Record<string, AssigneeProgressState> = { ...currentStates };
 
       for (const uid of targetUids) {
+        const prevNote = currentStates[uid]?.note;
         nextStates[uid] = {
           completed: false,
           completedAt: null,
-          note: currentStates[uid]?.note,
+          ...(prevNote ? { note: prevNote } : {}),
           reworkRequestedAt: nowMs,
         };
       }

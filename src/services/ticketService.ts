@@ -30,6 +30,22 @@ import type { UserProfile, UserSnapshot } from '../types/user';
 import { dispatchTicketEmail, type AppEmailConfig, type EmailDispatchResult } from './emailService';
 import { deleteFileFromR2, uploadFileToR2 } from './r2Service';
 
+function stripUndefinedDeep<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => stripUndefinedDeep(item)) as unknown as T;
+  }
+  if (value !== null && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (v !== undefined) {
+        out[k] = stripUndefinedDeep(v);
+      }
+    }
+    return out as T;
+  }
+  return value;
+}
+
 function buildSnapshots(assigneeIds: string[], users: UserProfile[]): Record<string, UserSnapshot> {
   const map: Record<string, UserSnapshot> = {};
   for (const uid of assigneeIds) {
@@ -344,19 +360,22 @@ export async function performTicketTransition(params: {
     const now = Date.now();
     const result = computeTransitionResult(currentTicket, actor, action, payload, now);
 
-    tx.update(ticketRef, result.ticketPatch);
-    tx.set(historyRef, {
-      ticketId,
-      actorId: actor.uid,
-      actorName: actor.displayName,
-      actorRole: actor.role,
-      action: result.historyAction,
-      fromStatus: currentTicket.status,
-      toStatus: result.nextStatus,
-      ...(result.historyNote ? { note: result.historyNote } : {}),
-      ...(result.historyMetadata ? { metadata: result.historyMetadata } : {}),
-      createdAt: now,
-    });
+    tx.update(ticketRef, stripUndefinedDeep(result.ticketPatch));
+    tx.set(
+      historyRef,
+      stripUndefinedDeep({
+        ticketId,
+        actorId: actor.uid,
+        actorName: actor.displayName,
+        actorRole: actor.role,
+        action: result.historyAction,
+        fromStatus: currentTicket.status,
+        toStatus: result.nextStatus,
+        ...(result.historyNote ? { note: result.historyNote } : {}),
+        ...(result.historyMetadata ? { metadata: result.historyMetadata } : {}),
+        createdAt: now,
+      })
+    );
 
     return {
       updatedTicket: { ...currentTicket, ...result.ticketPatch },
