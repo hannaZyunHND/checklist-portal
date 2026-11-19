@@ -5,12 +5,20 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isNotRevoked() {
+      return !exists(/databases/$(database)/documents/deletedUsers/$(request.auth.uid));
+    }
+
+    function isActiveUser() {
+      return isSignedIn() && isNotRevoked();
+    }
+
     function userDoc(uid) {
       return get(/databases/$(database)/documents/users/$(uid)).data;
     }
 
     function isManager() {
-      return isSignedIn()
+      return isActiveUser()
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
         && (userDoc(request.auth.uid).role == 'MANAGER' || userDoc(request.auth.uid).role == 'PD');
     }
@@ -44,12 +52,13 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      allow read: if isSignedIn();
+      allow read: if isActiveUser();
       allow create: if isSignedIn()
         && (
           isManager()
           || (
             request.auth.uid == uid
+            && isNotRevoked()
             && (
               request.resource.data.role == 'STAFF'
               || request.resource.data.role == 'OM'
@@ -62,23 +71,29 @@ service cloud.firestore {
         );
       allow update: if isManager()
         || (
-          isSignedIn()
+          isActiveUser()
           && request.auth.uid == uid
           && request.resource.data.role == resource.data.role
         );
-      allow delete: if false;
+      allow delete: if isManager() && request.auth.uid != uid;
+    }
+
+    match /deletedUsers/{uid} {
+      allow read: if isSignedIn() && (request.auth.uid == uid || isManager());
+      allow create, update: if isManager() && request.auth.uid != uid;
+      allow delete: if isManager();
     }
 
     match /config/{docId} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow read: if isActiveUser();
+      allow write: if isActiveUser();
     }
 
     match /tickets/{ticketId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn()
+      allow read: if isActiveUser();
+      allow create: if isActiveUser()
         && request.resource.data.createdBy == request.auth.uid;
-      allow update: if isSignedIn()
+      allow update: if isActiveUser()
         && (
           isTicketReviewer(resource.data)
           || (
@@ -93,29 +108,29 @@ service cloud.firestore {
             && request.resource.data.deadline == resource.data.deadline
           )
         );
-      allow delete: if isSignedIn() && resource.data.createdBy == request.auth.uid;
+      allow delete: if isActiveUser() && resource.data.createdBy == request.auth.uid;
 
       match /history/{historyId} {
-        allow read: if isSignedIn();
-        allow create: if isSignedIn();
+        allow read: if isActiveUser();
+        allow create: if isActiveUser();
         allow update: if false;
-        allow delete: if isSignedIn()
+        allow delete: if isActiveUser()
           && get(/databases/$(database)/documents/tickets/$(ticketId)).data.createdBy == request.auth.uid;
       }
 
       match /attachments/{attachmentId} {
-        allow read: if isSignedIn();
-        allow create: if isSignedIn()
+        allow read: if isActiveUser();
+        allow create: if isActiveUser()
           && get(/databases/$(database)/documents/tickets/$(ticketId)).data.createdBy == request.auth.uid;
         allow update: if false;
-        allow delete: if isSignedIn()
+        allow delete: if isActiveUser()
           && get(/databases/$(database)/documents/tickets/$(ticketId)).data.createdBy == request.auth.uid;
       }
     }
 
     match /emailLogs/{logId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
+      allow read: if isActiveUser();
+      allow create: if isActiveUser();
       allow update, delete: if false;
     }
   }

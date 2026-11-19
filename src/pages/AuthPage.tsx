@@ -5,7 +5,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { loginAccount, mapAuthErrorMessage, registerAccount } from '../services/authService';
 
 export function AuthPage() {
-  const { firebaseUser, userProfile, loading, isConfigured } = useAuth();
+  const { firebaseUser, userProfile, loading, isConfigured, revokedMessage, clearRevokedMessage } =
+    useAuth();
   const [mode, setMode] = useState<'login' | 'register'>('login');
 
   const [displayName, setDisplayName] = useState('');
@@ -26,6 +27,7 @@ export function AuthPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    clearRevokedMessage();
 
     if (!isConfigured) {
       setError('Ứng dụng chưa được cấu hình Firebase (.env). Vui lòng xem README.md để điền VITE_FIREBASE_*');
@@ -121,13 +123,13 @@ export function AuthPage() {
           </button>
         </div>
 
-        {error && (
+        {(error || revokedMessage) && (
           <div
             role="alert"
             className="mt-4 flex items-start gap-2 rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800"
           >
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" aria-hidden="true" />
-            <span>{error}</span>
+            <span>{error || revokedMessage}</span>
           </div>
         )}
 

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
+import { onAuthStateChanged, signOut, type User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { auth, bootstrapPdEmails, db, isFirebaseConfigured } from '../config/firebase';
 import { isRegisteringAccount } from '../services/authService';
@@ -15,6 +15,8 @@ interface AuthContextValue {
   userProfile: UserProfile | null;
   loading: boolean;
   isConfigured: boolean;
+  revokedMessage: string;
+  clearRevokedMessage: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue>({
@@ -22,12 +24,15 @@ const AuthContext = createContext<AuthContextValue>({
   userProfile: null,
   loading: true,
   isConfigured: isFirebaseConfigured,
+  revokedMessage: '',
+  clearRevokedMessage: () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [revokedMessage, setRevokedMessage] = useState('');
 
   useEffect(() => {
     if (!isFirebaseConfigured) {
@@ -55,6 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         doc(db, 'users', user.uid),
         async (snap) => {
           if (snap.exists()) {
+            setRevokedMessage('');
             const raw = snap.data() as Omit<UserProfile, 'uid' | 'role'> & { role?: string };
             setUserProfile({
               ...raw,
@@ -70,6 +76,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return;
           }
 
+          try {
+            const deletedSnap = await getDoc(doc(db, 'deletedUsers', user.uid));
+            if (deletedSnap.exists()) {
+              setRevokedMessage(
+                'Tài khoản này đã bị Quản lý xóa khỏi hệ thống. Vui lòng liên hệ Quản lý nếu cần hỗ trợ.'
+              );
+              setUserProfile(null);
+              await signOut(auth);
+              setLoading(false);
+              return;
+            }
+          } catch {
+            // ignore and continue fallback check
+          }
+
+          setRevokedMessage('');
           const email = (user.email || '').toLowerCase();
           let role: UserRole = bootstrapPdEmails.includes(email) ? 'MANAGER' : 'STAFF';
           try {
@@ -133,6 +155,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         userProfile,
         loading,
         isConfigured: isFirebaseConfigured,
+        revokedMessage,
+        clearRevokedMessage: () => setRevokedMessage(''),
       }}
     >
       {children}

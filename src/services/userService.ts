@@ -1,6 +1,15 @@
 import { getApps, initializeApp } from 'firebase/app';
 import { createUserWithEmailAndPassword, getAuth, signOut, updateProfile } from 'firebase/auth';
-import { collection, doc, onSnapshot, orderBy, query, setDoc, updateDoc } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+  setDoc,
+  updateDoc,
+  writeBatch,
+} from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 import {
   inferDefaultDepartment,
@@ -101,6 +110,25 @@ export async function adminUpdateUserAccount(
     ...(updates.department ? { department: updates.department } : {}),
     updatedAt: Date.now(),
   });
+}
+
+export async function adminDeleteUserAccount(
+  targetUser: UserProfile,
+  actorUid: string
+): Promise<void> {
+  if (targetUser.uid === actorUid) {
+    throw new Error('Không thể tự xóa tài khoản đang đăng nhập.');
+  }
+  const batch = writeBatch(db);
+  batch.set(doc(db, 'deletedUsers', targetUser.uid), {
+    uid: targetUser.uid,
+    email: targetUser.email,
+    displayName: targetUser.displayName,
+    deletedBy: actorUid,
+    deletedAt: Date.now(),
+  });
+  batch.delete(doc(db, 'users', targetUser.uid));
+  await batch.commit();
 }
 
 export function subscribeAppConfig(callback: (cfg: AppConfigDoc) => void): () => void {
