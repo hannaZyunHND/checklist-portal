@@ -82,7 +82,11 @@ service cloud.firestore {
         && (
           isTicketReviewer(resource.data)
           || (
-            request.auth.uid in resource.data.assigneeIds
+            (
+              request.auth.uid in resource.data.assigneeIds
+              || ('listingAssigneeId' in resource.data && resource.data.listingAssigneeId == request.auth.uid)
+              || ('goliveAssigneeId' in resource.data && resource.data.goliveAssigneeId == request.auth.uid)
+            )
             && request.resource.data.createdBy == resource.data.createdBy
             && request.resource.data.groupType == resource.data.groupType
             && request.resource.data.assigneeIds == resource.data.assigneeIds

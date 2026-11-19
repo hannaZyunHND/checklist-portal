@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { FileEdit, FolderKanban, Loader2, PackagePlus } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { validateCreateTicketInput } from '../../domain/ticketStateMachine';
@@ -32,13 +32,13 @@ const GROUP_OPTIONS: Array<{
   {
     type: 'EDIT_OLD',
     label: 'Chỉnh sửa SP cũ',
-    desc: 'OM làm → OM GoLive → Đóng',
+    desc: 'Người tạo làm → Kiểm tra → Đóng',
     Icon: FileEdit,
   },
   {
     type: 'NEW_LISTING',
     label: 'Listing SP mới',
-    desc: 'OM Listing → PD → GoLive → Đóng',
+    desc: 'Listing → Kiểm tra → GoLive → Đóng',
     Icon: PackagePlus,
   },
   {
@@ -50,8 +50,7 @@ const GROUP_OPTIONS: Array<{
 ];
 
 function formatMemberLabel(u: UserProfile): string {
-  const deptTag = u.department && u.department !== 'OTHER' ? ` · ${u.department}` : '';
-  return `${u.displayName}${deptTag} (${u.email})`;
+  return `${u.displayName} (${u.email})`;
 }
 
 export function CreateTicketModal({ open, onClose, users, onCreated }: CreateTicketModalProps) {
@@ -63,6 +62,8 @@ export function CreateTicketModal({ open, onClose, users, onCreated }: CreateTic
     toDatetimeLocalValue(Date.now() + 24 * 60 * 60 * 1000)
   );
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
+  const [listingAssigneeId, setListingAssigneeId] = useState('');
+  const [goliveAssigneeId, setGoliveAssigneeId] = useState('');
   const [reviewerId, setReviewerId] = useState('');
   const [autoPassListing, setAutoPassListing] = useState(false);
 
@@ -80,12 +81,6 @@ export function CreateTicketModal({ open, onClose, users, onCreated }: CreateTic
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState('');
 
-  useEffect(() => {
-    if (open && userProfile && !reviewerId) {
-      setReviewerId(userProfile.uid);
-    }
-  }, [open, userProfile, reviewerId]);
-
   const resetForm = () => {
     attachments.forEach((a) => {
       if (a.previewUrl) URL.revokeObjectURL(a.previewUrl);
@@ -93,7 +88,9 @@ export function CreateTicketModal({ open, onClose, users, onCreated }: CreateTic
     setTitle('');
     setDeadlineStr(toDatetimeLocalValue(Date.now() + 24 * 60 * 60 * 1000));
     setAssigneeIds([]);
-    setReviewerId(userProfile?.uid || '');
+    setListingAssigneeId('');
+    setGoliveAssigneeId('');
+    setReviewerId('');
     setAutoPassListing(false);
     setSku('');
     setEditRequirements('');
@@ -130,12 +127,30 @@ export function CreateTicketModal({ open, onClose, users, onCreated }: CreateTic
     if (!userProfile) return;
     setServerError('');
 
+    const effectiveListingAssigneeId =
+      groupType === 'NEW_LISTING'
+        ? autoPassListing
+          ? userProfile.uid
+          : listingAssigneeId
+        : undefined;
+
+    const computedAssigneeIds =
+      groupType === 'EDIT_OLD'
+        ? [userProfile.uid]
+        : groupType === 'NEW_LISTING'
+        ? Array.from(
+            new Set([effectiveListingAssigneeId, goliveAssigneeId].filter((id): id is string => Boolean(id)))
+          )
+        : assigneeIds;
+
     const input: CreateTicketInput = {
       groupType,
       title,
       deadline: parseDatetimeLocalVietnam(deadlineStr),
-      assigneeIds,
-      reviewerId: groupType === 'EDIT_OLD' ? undefined : reviewerId || userProfile.uid,
+      assigneeIds: computedAssigneeIds,
+      reviewerId,
+      listingAssigneeId: effectiveListingAssigneeId,
+      goliveAssigneeId: groupType === 'NEW_LISTING' ? goliveAssigneeId : undefined,
       autoPassListing: groupType === 'NEW_LISTING' ? autoPassListing : false,
       sku,
       editRequirements,
@@ -176,7 +191,7 @@ export function CreateTicketModal({ open, onClose, users, onCreated }: CreateTic
       open={open}
       onClose={onClose}
       title="Tạo Ticket công việc mới"
-      subtitle="Chọn nhóm việc và chỉ định vai trò thực hiện (OM / PD) trong task này"
+      subtitle="Chọn nhóm việc và phân công người thực hiện từng bước trong task"
       maxWidthClass="md:max-w-2xl"
     >
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
@@ -342,7 +357,7 @@ export function CreateTicketModal({ open, onClose, users, onCreated }: CreateTic
                 className="h-4 w-4 accent-teal-600"
               />
               <span>
-                Đã Listing sẵn (bỏ qua bước OM Listing → gửi thẳng sang PD check)
+                Đã Listing sẵn (bỏ qua Bước 1 Listing → chuyển thẳng sang Bước 2 Kiểm tra)
               </span>
             </label>
 
@@ -441,120 +456,213 @@ export function CreateTicketModal({ open, onClose, users, onCreated }: CreateTic
           )}
         </div>
 
-        {/* Role-in-Task Assignments */}
+        {/* Per-step Task Assignments */}
         <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5">
           <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-            Phân vai trò trong Task
+            Phân công người thực hiện theo bước
           </div>
 
-          {/* OM / Executor Picker */}
-          <div>
-            <label htmlFor="field-assigneeIds" className="block text-sm font-medium text-slate-800">
-              {groupType === 'OFFICE'
-                ? 'Nhân sự thực hiện (chọn 1 hoặc nhiều)'
-                : groupType === 'NEW_LISTING'
-                ? 'Người thực hiện (Vai trò OM — Listing & GoLive)'
-                : 'Người thực hiện (Vai trò OM — Sửa & GoLive)'}{' '}
-              <span className="text-red-600">*</span>
-            </label>
-
-            {users.length === 0 ? (
-              <div className="mt-1.5 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
-                Chưa có thành viên nào trong hệ thống.
-              </div>
-            ) : groupType === 'OFFICE' ? (
-              <div
-                id="field-assigneeIds"
-                tabIndex={-1}
-                className="mt-1.5 max-h-48 space-y-1.5 overflow-y-auto rounded-lg border border-slate-300 bg-white p-2"
-              >
-                {users.map((member) => {
-                  const checked = assigneeIds.includes(member.uid);
-                  return (
-                    <label
-                      key={member.uid}
-                      className={`flex min-h-[44px] items-center gap-3 rounded-lg border px-3 py-2 transition ${
-                        checked
-                          ? 'border-teal-500 bg-teal-50/40'
-                          : 'border-transparent bg-slate-50/60 hover:bg-slate-50'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleOfficeAssignee(member.uid)}
-                        className="h-4 w-4 accent-teal-600"
-                      />
-                      <UserAvatar
-                        name={member.displayName}
-                        avatarDataUrl={member.avatarDataUrl}
-                        size="xs"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium text-slate-900">
-                          {member.displayName}{' '}
-                          {member.department && member.department !== 'OTHER' && (
-                            <span className="text-xs font-semibold text-teal-700">
-                              ({member.department})
-                            </span>
-                          )}
-                        </div>
-                        <div className="truncate text-xs text-slate-500">{member.email}</div>
-                      </div>
-                    </label>
-                  );
-                })}
-              </div>
-            ) : (
-              <select
-                id="field-assigneeIds"
-                value={assigneeIds[0] || ''}
-                onChange={(e) => setAssigneeIds(e.target.value ? [e.target.value] : [])}
-                className="mt-1.5 min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 md:text-sm"
-              >
-                <option value="">-- Chọn người thực hiện (OM) --</option>
-                {users.map((member) => (
-                  <option key={member.uid} value={member.uid}>
-                    {formatMemberLabel(member)}
-                  </option>
-                ))}
-              </select>
-            )}
-            {errors.assigneeIds && (
-              <p id="err-assigneeIds" className="mt-1 text-xs text-red-600">
-                {errors.assigneeIds}
-              </p>
-            )}
-          </div>
-
-          {/* PD / Reviewer Picker (Group II & Group III only; Group I has NO PD!) */}
-          {groupType !== 'EDIT_OLD' && (
-            <div>
-              <label htmlFor="field-reviewerId" className="block text-sm font-medium text-slate-800">
-                {groupType === 'NEW_LISTING'
-                  ? 'Người kiểm tra & duyệt (Vai trò PD)'
-                  : 'Người kiểm tra & đóng task'}{' '}
-                <span className="text-red-600">*</span>
-              </label>
-              <select
-                id="field-reviewerId"
-                value={reviewerId}
-                onChange={(e) => setReviewerId(e.target.value)}
-                className="mt-1.5 min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 md:text-sm"
-              >
-                <option value="">-- Chọn người kiểm tra --</option>
-                {users.map((member) => (
-                  <option key={member.uid} value={member.uid}>
-                    {formatMemberLabel(member)}
-                  </option>
-                ))}
-              </select>
-              {errors.reviewerId && (
-                <p id="err-reviewerId" className="mt-1 text-xs text-red-600">
-                  {errors.reviewerId}
-                </p>
-              )}
+          {users.length === 0 ? (
+            <div className="mt-1.5 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+              Chưa có thành viên nào trong hệ thống.
             </div>
+          ) : groupType === 'EDIT_OLD' ? (
+            <>
+              <div className="rounded-lg border border-teal-200 bg-teal-50/70 px-3 py-2.5 text-sm text-teal-950">
+                <div className="text-xs font-semibold uppercase tracking-wide text-teal-800">
+                  Bước 1 — Thực hiện chỉnh sửa
+                </div>
+                <div className="mt-1 font-medium">
+                  {userProfile?.displayName} ({userProfile?.email}) — Người tạo tự thực hiện
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="field-reviewerId" className="block text-sm font-medium text-slate-800">
+                  Bước 2 — Người kiểm tra &amp; Đóng Task <span className="text-red-600">*</span>
+                </label>
+                <select
+                  id="field-reviewerId"
+                  value={reviewerId}
+                  onChange={(e) => setReviewerId(e.target.value)}
+                  className="mt-1.5 min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 md:text-sm"
+                >
+                  <option value="">-- Chọn người kiểm tra --</option>
+                  {users.map((member) => (
+                    <option key={member.uid} value={member.uid}>
+                      {formatMemberLabel(member)}
+                    </option>
+                  ))}
+                </select>
+                {errors.reviewerId && (
+                  <p id="err-reviewerId" className="mt-1 text-xs text-red-600">
+                    {errors.reviewerId}
+                  </p>
+                )}
+              </div>
+            </>
+          ) : groupType === 'NEW_LISTING' ? (
+            <>
+              {autoPassListing ? (
+                <div className="rounded-lg border border-teal-200 bg-teal-50/70 px-3 py-2 text-xs font-medium text-teal-950">
+                  Bước 1 — Listing: Đã hoàn thành sẵn bởi người tạo ({userProfile?.displayName}).
+                </div>
+              ) : (
+                <div>
+                  <label
+                    htmlFor="field-listingAssigneeId"
+                    className="block text-sm font-medium text-slate-800"
+                  >
+                    Bước 1 — Người thực hiện Listing <span className="text-red-600">*</span>
+                  </label>
+                  <select
+                    id="field-listingAssigneeId"
+                    value={listingAssigneeId}
+                    onChange={(e) => setListingAssigneeId(e.target.value)}
+                    className="mt-1.5 min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 md:text-sm"
+                  >
+                    <option value="">-- Chọn người thực hiện Listing --</option>
+                    {users.map((member) => (
+                      <option key={member.uid} value={member.uid}>
+                        {formatMemberLabel(member)}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.listingAssigneeId && (
+                    <p id="err-listingAssigneeId" className="mt-1 text-xs text-red-600">
+                      {errors.listingAssigneeId}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div>
+                <label htmlFor="field-reviewerId" className="block text-sm font-medium text-slate-800">
+                  Bước 2 — Người kiểm tra / duyệt Listing <span className="text-red-600">*</span>
+                </label>
+                <select
+                  id="field-reviewerId"
+                  value={reviewerId}
+                  onChange={(e) => setReviewerId(e.target.value)}
+                  className="mt-1.5 min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 md:text-sm"
+                >
+                  <option value="">-- Chọn người kiểm tra --</option>
+                  {users.map((member) => (
+                    <option key={member.uid} value={member.uid}>
+                      {formatMemberLabel(member)}
+                    </option>
+                  ))}
+                </select>
+                {errors.reviewerId && (
+                  <p id="err-reviewerId" className="mt-1 text-xs text-red-600">
+                    {errors.reviewerId}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label
+                  htmlFor="field-goliveAssigneeId"
+                  className="block text-sm font-medium text-slate-800"
+                >
+                  Bước 3 — Người thực hiện GoLive &amp; Đóng Task{' '}
+                  <span className="text-red-600">*</span>
+                </label>
+                <select
+                  id="field-goliveAssigneeId"
+                  value={goliveAssigneeId}
+                  onChange={(e) => setGoliveAssigneeId(e.target.value)}
+                  className="mt-1.5 min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 md:text-sm"
+                >
+                  <option value="">-- Chọn người thực hiện GoLive --</option>
+                  {users.map((member) => (
+                    <option key={member.uid} value={member.uid}>
+                      {formatMemberLabel(member)}
+                    </option>
+                  ))}
+                </select>
+                {errors.goliveAssigneeId && (
+                  <p id="err-goliveAssigneeId" className="mt-1 text-xs text-red-600">
+                    {errors.goliveAssigneeId}
+                  </p>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <label htmlFor="field-assigneeIds" className="block text-sm font-medium text-slate-800">
+                  Người thực hiện công việc (chọn 1 hoặc nhiều){' '}
+                  <span className="text-red-600">*</span>
+                </label>
+                <div
+                  id="field-assigneeIds"
+                  tabIndex={-1}
+                  className="mt-1.5 max-h-48 space-y-1.5 overflow-y-auto rounded-lg border border-slate-300 bg-white p-2"
+                >
+                  {users.map((member) => {
+                    const checked = assigneeIds.includes(member.uid);
+                    return (
+                      <label
+                        key={member.uid}
+                        className={`flex min-h-[44px] items-center gap-3 rounded-lg border px-3 py-2 transition ${
+                          checked
+                            ? 'border-teal-500 bg-teal-50/40'
+                            : 'border-transparent bg-slate-50/60 hover:bg-slate-50'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleOfficeAssignee(member.uid)}
+                          className="h-4 w-4 accent-teal-600"
+                        />
+                        <UserAvatar
+                          name={member.displayName}
+                          avatarDataUrl={member.avatarDataUrl}
+                          size="xs"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-medium text-slate-900">
+                            {member.displayName}
+                          </div>
+                          <div className="truncate text-xs text-slate-500">{member.email}</div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+                {errors.assigneeIds && (
+                  <p id="err-assigneeIds" className="mt-1 text-xs text-red-600">
+                    {errors.assigneeIds}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="field-reviewerId" className="block text-sm font-medium text-slate-800">
+                  Người kiểm tra &amp; Đóng Task <span className="text-red-600">*</span>
+                </label>
+                <select
+                  id="field-reviewerId"
+                  value={reviewerId}
+                  onChange={(e) => setReviewerId(e.target.value)}
+                  className="mt-1.5 min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 md:text-sm"
+                >
+                  <option value="">-- Chọn người kiểm tra --</option>
+                  {users.map((member) => (
+                    <option key={member.uid} value={member.uid}>
+                      {formatMemberLabel(member)}
+                    </option>
+                  ))}
+                </select>
+                {errors.reviewerId && (
+                  <p id="err-reviewerId" className="mt-1 text-xs text-red-600">
+                    {errors.reviewerId}
+                  </p>
+                )}
+              </div>
+            </>
           )}
         </div>
 

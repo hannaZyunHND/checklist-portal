@@ -22,13 +22,13 @@ export interface AdminCreateUserInput {
   email: string;
   password: string;
   role: UserRole;
-  department: DepartmentType;
+  department?: DepartmentType;
 }
 
 export interface AdminUpdateUserInput {
   displayName: string;
   role: UserRole;
-  department: DepartmentType;
+  department?: DepartmentType;
 }
 
 export function subscribeTeamUsers(callback: (users: UserProfile[]) => void): () => void {
@@ -78,7 +78,7 @@ export async function adminCreateUserAccount(input: AdminCreateUserInput): Promi
     displayName: cleanName,
     avatarDataUrl: '',
     role: input.role,
-    department: input.department,
+    department: input.department || 'OTHER',
     createdAt: now,
     updatedAt: now,
   };
@@ -98,7 +98,7 @@ export async function adminUpdateUserAccount(
   await updateDoc(doc(db, 'users', uid), {
     displayName: cleanName,
     role: updates.role,
-    department: updates.department,
+    ...(updates.department ? { department: updates.department } : {}),
     updatedAt: Date.now(),
   });
 }

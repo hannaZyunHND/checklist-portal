@@ -103,7 +103,7 @@ export function DashboardPage({ tickets, users, nowMs }: DashboardPageProps) {
           className="rounded-xl border border-slate-200 bg-white p-4 transition hover:border-violet-400"
         >
           <div className="flex items-center justify-between text-xs font-medium text-slate-500">
-            <span>Chờ PD kiểm tra / duyệt</span>
+            <span>Chờ kiểm tra / duyệt</span>
             <Eye className="h-4 w-4 text-violet-600" aria-hidden="true" />
           </div>
           <div className="font-mono-code mt-2 text-2xl font-bold text-violet-800">
@@ -228,7 +228,7 @@ export function DashboardPage({ tickets, users, nowMs }: DashboardPageProps) {
                   <th className="px-3 py-2.5 text-center font-semibold">Chờ xử lý</th>
                   <th className="px-3 py-2.5 text-center font-semibold">Chờ Listing</th>
                   <th className="px-3 py-2.5 text-center font-semibold">Chờ GoLive</th>
-                  <th className="px-3 py-2.5 text-center font-semibold">Chờ PD duyệt</th>
+                  <th className="px-3 py-2.5 text-center font-semibold">Chờ kiểm tra</th>
                   <th className="px-3 py-2.5 text-center font-semibold">Đã đóng</th>
                 </tr>
               </thead>

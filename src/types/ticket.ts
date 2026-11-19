@@ -80,6 +80,12 @@ export interface Ticket {
   reviewerId?: string | null;
   reviewerName?: string | null;
   reviewerEmail?: string | null;
+  listingAssigneeId?: string | null;
+  listingAssigneeName?: string | null;
+  listingAssigneeEmail?: string | null;
+  goliveAssigneeId?: string | null;
+  goliveAssigneeName?: string | null;
+  goliveAssigneeEmail?: string | null;
   assigneeIds: string[];
   assigneeSnapshots: Record<string, UserSnapshot>;
   createdAt: number;
@@ -137,6 +143,8 @@ export interface CreateTicketInput {
   deadline: number;
   assigneeIds: string[];
   reviewerId?: string;
+  listingAssigneeId?: string;
+  goliveAssigneeId?: string;
   autoPassListing?: boolean;
   sku?: string;
   editRequirements?: string;
@@ -170,9 +178,9 @@ export const TICKET_GROUP_SHORT_LABELS: Record<TicketGroupType, string> = {
 export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
   WAITING_OM: 'Chờ thực hiện',
   PENDING_PD_CHECK: 'Chờ kiểm tra',
-  WAITING_LISTING: 'Chờ OM listing',
-  PENDING_GOLIVE_APPROVAL: 'Chờ PD check',
-  WAITING_GOLIVE: 'Chờ OM GoLive',
+  WAITING_LISTING: 'Chờ Listing',
+  PENDING_GOLIVE_APPROVAL: 'Chờ duyệt Listing',
+  WAITING_GOLIVE: 'Chờ GoLive',
   PENDING_CLOSE: 'Chờ kiểm tra đóng',
   CLOSED: 'Đã đóng',
 };
@@ -180,11 +188,11 @@ export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
 export const HISTORY_ACTION_LABELS: Record<HistoryAction, string> = {
   CREATE: 'Tạo ticket mới',
   OM_COMPLETE: 'Hoàn thành bước thực hiện',
-  OM_CLOSE_EDIT_GOLIVE: 'OM GoLive & Đóng Task',
+  OM_CLOSE_EDIT_GOLIVE: 'Hoàn tất GoLive & Đóng Task',
   OM_CHECK_PARTIAL: 'Hoàn thành phần việc cá nhân',
-  OM_SUBMIT_LISTING: 'OM hoàn thành listing & gửi PD check',
-  PD_APPROVE_GOLIVE: 'PD duyệt GoLive sản phẩm',
-  OM_SUBMIT_GOLIVE: 'OM GoLive & Đóng Task',
+  OM_SUBMIT_LISTING: 'Hoàn thành Listing & gửi kiểm tra',
+  PD_APPROVE_GOLIVE: 'Duyệt Listing → Chuyển GoLive',
+  OM_SUBMIT_GOLIVE: 'Hoàn tất GoLive & Đóng Task',
   PD_REJECT_REWORK: 'Yêu cầu làm lại',
-  PD_CLOSE: 'Xác nhận đóng ticket',
+  PD_CLOSE: 'Kiểm tra đạt & Đóng Task',
 };

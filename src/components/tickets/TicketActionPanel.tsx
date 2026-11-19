@@ -153,7 +153,7 @@ export function TicketActionPanel({
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Group II: OM Listing requires expectedSku */}
+          {/* Group II: Listing requires expectedSku */}
           {actions.includes('OM_SUBMIT_LISTING') && (
             <div>
               <label htmlFor="input-expectedSku" className="block text-sm font-medium text-slate-800">
@@ -173,7 +173,7 @@ export function TicketActionPanel({
             </div>
           )}
 
-          {/* Group II: OM GoLive requires productUrl */}
+          {/* Group II: GoLive requires productUrl */}
           {actions.includes('OM_SUBMIT_GOLIVE') && (
             <div>
               <label htmlFor="input-productUrl" className="block text-sm font-medium text-slate-800">
@@ -246,7 +246,7 @@ export function TicketActionPanel({
               onChange={(e) => setNote(e.target.value)}
               placeholder={
                 reworkMode
-                  ? 'Mô tả rõ điểm chưa đạt để nhân sự OM chỉnh sửa...'
+                  ? 'Mô tả rõ điểm chưa đạt để người thực hiện chỉnh sửa...'
                   : 'Nhập ghi chú đính kèm nếu có...'
               }
               className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 md:text-sm"
@@ -272,7 +272,7 @@ export function TicketActionPanel({
                   {ticket.groupType === 'OFFICE'
                     ? 'Tích hoàn thành phần của tôi'
                     : ticket.groupType === 'EDIT_OLD'
-                    ? 'Hoàn thành sửa → Chuyển GoLive'
+                    ? 'Hoàn thành sửa → Gửi kiểm tra'
                     : 'Tích hoàn thành'}
                 </span>
               </button>
@@ -306,7 +306,7 @@ export function TicketActionPanel({
                 ) : (
                   <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                 )}
-                <span>Hoàn thành Listing &amp; Gửi PD check</span>
+                <span>Hoàn thành Listing &amp; Gửi kiểm tra</span>
               </button>
             )}
 
@@ -338,7 +338,7 @@ export function TicketActionPanel({
                 ) : (
                   <Rocket className="h-4 w-4" aria-hidden="true" />
                 )}
-                <span>Xác nhận &quot;Golive sản phẩm&quot;</span>
+                <span>Duyệt Listing → Chuyển GoLive</span>
               </button>
             )}
 
@@ -354,7 +354,7 @@ export function TicketActionPanel({
                 ) : (
                   <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                 )}
-                <span>Xác nhận Đạt & Đóng ticket</span>
+                <span>Kiểm tra OK &amp; Đóng Task</span>
               </button>
             )}
 

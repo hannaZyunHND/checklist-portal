@@ -7,13 +7,11 @@ import {
   type TicketGroupType,
   type TicketStatus,
 } from '../../types/ticket';
-import { ACCOUNT_ROLE_LABELS, DEPARTMENT_LABELS, type UserProfile } from '../../types/user';
+import { ACCOUNT_ROLE_LABELS, type UserProfile } from '../../types/user';
 import { ModalOrSheet } from '../ui/ModalOrSheet';
 
 function formatMemberOptionLabel(member: UserProfile): string {
-  const roleLabel = ACCOUNT_ROLE_LABELS[member.role];
-  const deptLabel = member.department ? DEPARTMENT_LABELS[member.department] : '';
-  return deptLabel ? `${member.displayName} (${roleLabel} · ${deptLabel})` : `${member.displayName} (${roleLabel})`;
+  return `${member.displayName} (${ACCOUNT_ROLE_LABELS[member.role]})`;
 }
 
 export interface TicketFilterState {

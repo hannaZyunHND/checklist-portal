@@ -9,19 +9,19 @@ interface StepDef {
 function getSteps(ticket: Ticket): { steps: StepDef[]; activeIndex: number } {
   if (ticket.groupType === 'EDIT_OLD') {
     const steps: StepDef[] = [
-      { key: 'WAITING_OM', label: 'OM Thực hiện' },
-      { key: 'WAITING_GOLIVE', label: 'OM GoLive' },
+      { key: 'WAITING_OM', label: 'Thực hiện' },
+      { key: 'PENDING_PD_CHECK', label: 'Kiểm tra' },
       { key: 'CLOSED', label: 'Đóng Task' },
     ];
     const activeIndex = steps.findIndex((s) => s.key === ticket.status);
-    return { steps, activeIndex: activeIndex === -1 ? 0 : activeIndex };
+    return { steps, activeIndex: activeIndex === -1 ? 1 : activeIndex };
   }
 
   if (ticket.groupType === 'NEW_LISTING') {
     const steps: StepDef[] = [
-      { key: 'WAITING_LISTING', label: 'OM Listing' },
-      { key: 'PENDING_GOLIVE_APPROVAL', label: 'PD Check' },
-      { key: 'WAITING_GOLIVE', label: 'OM GoLive' },
+      { key: 'WAITING_LISTING', label: 'Listing SP' },
+      { key: 'PENDING_GOLIVE_APPROVAL', label: 'Kiểm tra' },
+      { key: 'WAITING_GOLIVE', label: 'GoLive' },
       { key: 'CLOSED', label: 'Đóng Task' },
     ];
     const activeIndex = steps.findIndex((s) => s.key === ticket.status);

@@ -29,7 +29,7 @@ export function TicketTable({
               <th className="px-4 py-3">Mã ID</th>
               <th className="px-4 py-3">Nhóm &amp; Tiêu đề</th>
               <th className="px-4 py-3">Người khởi tạo</th>
-              <th className="px-4 py-3">Vai trò thực hiện</th>
+              <th className="px-4 py-3">Người thực hiện</th>
               <th className="px-4 py-3">Thời gian tạo</th>
               <th className="px-4 py-3">Deadline</th>
               <th className="px-4 py-3">Trạng thái</th>
@@ -93,33 +93,57 @@ export function TicketTable({
                     <div className="text-[11px] text-slate-500">{ticket.createdByEmail}</div>
                   </td>
                   <td className="px-4 py-3.5 align-top">
-                    <div className="flex flex-col gap-1.5">
-                      {ticket.assigneeIds.slice(0, 3).map((uid) => {
-                        const snap = ticket.assigneeSnapshots[uid];
-                        return (
-                          <div key={uid} className="flex items-center gap-2">
-                            <UserAvatar
-                              name={snap?.displayName || uid}
-                              avatarDataUrl={snap?.avatarDataUrl}
-                              size="xs"
-                            />
-                            <span className="truncate text-xs font-medium text-slate-700">
-                              {snap?.displayName || uid}
-                            </span>
-                          </div>
-                        );
-                      })}
-                      {ticket.assigneeIds.length > 3 && (
-                        <span className="text-xs text-slate-500">
-                          +{ticket.assigneeIds.length - 3} nhân sự khác
-                        </span>
-                      )}
-                      {ticket.groupType !== 'EDIT_OLD' && ticket.reviewerName && (
-                        <div className="text-[11px] text-violet-700">
-                          PD duyệt: <strong>{ticket.reviewerName}</strong>
+                    {ticket.groupType === 'NEW_LISTING' ? (
+                      <div className="flex flex-col gap-1 text-[11px]">
+                        <div className="text-slate-700">
+                          Listing:{' '}
+                          <strong>
+                            {ticket.listingAssigneeName ||
+                              ticket.assigneeSnapshots[ticket.assigneeIds[0]]?.displayName ||
+                              '-'}
+                          </strong>
                         </div>
-                      )}
-                    </div>
+                        <div className="text-violet-700">
+                          Kiểm tra: <strong>{ticket.reviewerName || ticket.createdByName}</strong>
+                        </div>
+                        <div className="text-teal-800">
+                          GoLive:{' '}
+                          <strong>
+                            {ticket.goliveAssigneeName ||
+                              ticket.assigneeSnapshots[ticket.assigneeIds[0]]?.displayName ||
+                              '-'}
+                          </strong>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-1.5">
+                        {ticket.assigneeIds.slice(0, 3).map((uid) => {
+                          const snap = ticket.assigneeSnapshots[uid];
+                          return (
+                            <div key={uid} className="flex items-center gap-2">
+                              <UserAvatar
+                                name={snap?.displayName || uid}
+                                avatarDataUrl={snap?.avatarDataUrl}
+                                size="xs"
+                              />
+                              <span className="truncate text-xs font-medium text-slate-700">
+                                {snap?.displayName || uid}
+                              </span>
+                            </div>
+                          );
+                        })}
+                        {ticket.assigneeIds.length > 3 && (
+                          <span className="text-xs text-slate-500">
+                            +{ticket.assigneeIds.length - 3} nhân sự khác
+                          </span>
+                        )}
+                        {ticket.reviewerName && (
+                          <div className="text-[11px] text-violet-700">
+                            Kiểm tra: <strong>{ticket.reviewerName}</strong>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3.5 align-top">
                     <div className="font-mono-code text-xs text-slate-600">

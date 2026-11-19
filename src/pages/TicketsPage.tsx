@@ -54,7 +54,12 @@ export function TicketsPage({ tickets, users, nowMs, onOpenCreateTicket }: Ticke
     return tickets.filter((t) => {
       if (filters.groupType !== 'ALL' && t.groupType !== filters.groupType) return false;
       if (filters.status !== 'ALL' && t.status !== filters.status) return false;
-      if (filters.assigneeId !== 'ALL' && !t.assigneeIds.includes(filters.assigneeId)) {
+      if (
+        filters.assigneeId !== 'ALL' &&
+        !t.assigneeIds.includes(filters.assigneeId) &&
+        t.listingAssigneeId !== filters.assigneeId &&
+        t.goliveAssigneeId !== filters.assigneeId
+      ) {
         return false;
       }
       if (filters.overdueOnly && !isTicketOverdue(t, nowMs)) return false;
@@ -62,6 +67,8 @@ export function TicketsPage({ tickets, users, nowMs, onOpenCreateTicket }: Ticke
         const isRelated =
           t.createdBy === userProfile.uid ||
           getTicketReviewerId(t) === userProfile.uid ||
+          t.listingAssigneeId === userProfile.uid ||
+          t.goliveAssigneeId === userProfile.uid ||
           t.assigneeIds.includes(userProfile.uid);
         if (!isRelated) return false;
       }
@@ -74,6 +81,8 @@ export function TicketsPage({ tickets, users, nowMs, onOpenCreateTicket }: Ticke
           t.expectedSku || '',
           t.createdByName,
           t.reviewerName || '',
+          t.listingAssigneeName || '',
+          t.goliveAssigneeName || '',
           ...Object.values(t.assigneeSnapshots).map((s) => s.displayName),
         ]
           .join(' ')

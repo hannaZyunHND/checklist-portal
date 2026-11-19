@@ -89,7 +89,7 @@ export function TicketCardList({ tickets, nowMs }: TicketCardListProps) {
                   })}
                   <span className="text-xs text-slate-700">
                     {ticket.assigneeIds.length === 1
-                      ? ticket.assigneeSnapshots[ticket.assigneeIds[0]]?.displayName || 'OM'
+                      ? ticket.assigneeSnapshots[ticket.assigneeIds[0]]?.displayName || 'Nhân sự'
                       : `${ticket.assigneeIds.length} nhân sự`}
                   </span>
                 </div>

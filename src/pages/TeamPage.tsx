@@ -10,13 +10,11 @@ import {
 } from '../services/userService';
 import {
   ACCOUNT_ROLE_LABELS,
-  DEPARTMENT_LABELS,
-  type DepartmentType,
   type UserProfile,
   type UserRole,
 } from '../types/user';
 import { ModalOrSheet } from '../components/ui/ModalOrSheet';
-import { DepartmentBadge, RoleBadge } from '../components/ui/StatusBadge';
+import { RoleBadge } from '../components/ui/StatusBadge';
 import { UserAvatar } from '../components/ui/UserAvatar';
 
 export function TeamPage({ users }: { users: UserProfile[] }) {
@@ -36,7 +34,6 @@ export function TeamPage({ users }: { users: UserProfile[] }) {
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState<UserRole>('STAFF');
-  const [newDept, setNewDept] = useState<DepartmentType>('OM');
   const [creatingUser, setCreatingUser] = useState(false);
   const [createError, setCreateError] = useState('');
 
@@ -44,7 +41,6 @@ export function TeamPage({ users }: { users: UserProfile[] }) {
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [editName, setEditName] = useState('');
   const [editRole, setEditRole] = useState<UserRole>('STAFF');
-  const [editDept, setEditDept] = useState<DepartmentType>('OTHER');
   const [savingUser, setSavingUser] = useState(false);
   const [editError, setEditError] = useState('');
 
@@ -73,7 +69,6 @@ export function TeamPage({ users }: { users: UserProfile[] }) {
     setEditingUser(member);
     setEditName(member.displayName);
     setEditRole(member.role);
-    setEditDept(member.department || 'OTHER');
     setEditError('');
   };
 
@@ -87,14 +82,12 @@ export function TeamPage({ users }: { users: UserProfile[] }) {
         email: newEmail,
         password: newPassword,
         role: newRole,
-        department: newDept,
       });
       setCreateOpen(false);
       setNewName('');
       setNewEmail('');
       setNewPassword('');
       setNewRole('STAFF');
-      setNewDept('OM');
       setFeedback(`Đã tạo tài khoản "${created.displayName}" (${ACCOUNT_ROLE_LABELS[created.role]}) thành công.`);
     } catch (err) {
       setCreateError(mapAuthErrorMessage(err));
@@ -123,7 +116,6 @@ export function TeamPage({ users }: { users: UserProfile[] }) {
       await adminUpdateUserAccount(editingUser.uid, {
         displayName: editName,
         role: editRole,
-        department: editDept,
       });
       setFeedback(`Đã cập nhật thông tin tài khoản "${editName}".`);
       setEditingUser(null);
@@ -162,7 +154,7 @@ export function TeamPage({ users }: { users: UserProfile[] }) {
             Quản lý Tài khoản &amp; Cấu hình Hệ thống
           </h1>
           <p className="mt-0.5 text-sm text-slate-600">
-            Tạo/sửa tài khoản Quản lý &amp; Nhân viên, gán bộ phận tham khảo (PD / OM) và cấu hình Email Webhook.
+            Tạo/sửa tài khoản Quản lý &amp; Nhân viên và cấu hình Email Webhook.
           </p>
         </div>
         <button
@@ -233,7 +225,6 @@ export function TeamPage({ users }: { users: UserProfile[] }) {
                       {member.displayName}
                     </span>
                     <RoleBadge role={member.role} />
-                    <DepartmentBadge department={member.department} />
                   </div>
                   <div className="text-xs text-slate-500">{member.email}</div>
                 </div>
@@ -393,31 +384,16 @@ export function TeamPage({ users }: { users: UserProfile[] }) {
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className="block text-sm font-medium text-slate-800">Quyền tài khoản</label>
-              <select
-                value={newRole}
-                onChange={(e) => setNewRole(e.target.value as UserRole)}
-                className="mt-1.5 min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-              >
-                <option value="STAFF">Nhân viên</option>
-                <option value="MANAGER">Quản lý</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-800">Bộ phận đang làm</label>
-              <select
-                value={newDept}
-                onChange={(e) => setNewDept(e.target.value as DepartmentType)}
-                className="mt-1.5 min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-              >
-                <option value="OM">{DEPARTMENT_LABELS.OM}</option>
-                <option value="PD">{DEPARTMENT_LABELS.PD}</option>
-                <option value="OTHER">{DEPARTMENT_LABELS.OTHER}</option>
-              </select>
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-800">Quyền tài khoản</label>
+            <select
+              value={newRole}
+              onChange={(e) => setNewRole(e.target.value as UserRole)}
+              className="mt-1.5 min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="STAFF">Nhân viên</option>
+              <option value="MANAGER">Quản lý</option>
+            </select>
           </div>
 
           <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
@@ -468,31 +444,16 @@ export function TeamPage({ users }: { users: UserProfile[] }) {
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className="block text-sm font-medium text-slate-800">Quyền tài khoản</label>
-              <select
-                value={editRole}
-                onChange={(e) => setEditRole(e.target.value as UserRole)}
-                className="mt-1.5 min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-              >
-                <option value="STAFF">Nhân viên</option>
-                <option value="MANAGER">Quản lý</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-800">Bộ phận đang làm</label>
-              <select
-                value={editDept}
-                onChange={(e) => setEditDept(e.target.value as DepartmentType)}
-                className="mt-1.5 min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-              >
-                <option value="OM">{DEPARTMENT_LABELS.OM}</option>
-                <option value="PD">{DEPARTMENT_LABELS.PD}</option>
-                <option value="OTHER">{DEPARTMENT_LABELS.OTHER}</option>
-              </select>
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-800">Quyền tài khoản</label>
+            <select
+              value={editRole}
+              onChange={(e) => setEditRole(e.target.value as UserRole)}
+              className="mt-1.5 min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+            >
+              <option value="STAFF">Nhân viên</option>
+              <option value="MANAGER">Quản lý</option>
+            </select>
           </div>
 
           <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">

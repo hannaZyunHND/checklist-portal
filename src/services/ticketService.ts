@@ -46,10 +46,16 @@ function stripUndefinedDeep<T>(value: T): T {
   return value;
 }
 
-function buildSnapshots(assigneeIds: string[], users: UserProfile[]): Record<string, UserSnapshot> {
+function buildSnapshots(
+  assigneeIds: string[],
+  users: UserProfile[],
+  fallbackUser?: UserProfile
+): Record<string, UserSnapshot> {
   const map: Record<string, UserSnapshot> = {};
   for (const uid of assigneeIds) {
-    const found = users.find((u) => u.uid === uid);
+    const found =
+      users.find((u) => u.uid === uid) ||
+      (fallbackUser && fallbackUser.uid === uid ? fallbackUser : undefined);
     if (found) {
       map[uid] = {
         uid: found.uid,
@@ -173,15 +179,35 @@ export async function createTicket(
 
   const now = Date.now();
   const initialStatus = getInitialStatusForCreation(input);
-  const snapshots = buildSnapshots(input.assigneeIds, allUsers);
-
-  const needsReviewer = input.groupType !== 'EDIT_OLD';
-  const reviewerUser = needsReviewer
-    ? (input.reviewerId ? allUsers.find((u) => u.uid === input.reviewerId) : undefined) ||
-      creatorUser
-    : null;
-
   const isAutoPassListing = input.groupType === 'NEW_LISTING' && Boolean(input.autoPassListing);
+
+  const findUser = (uid?: string): UserProfile | undefined => {
+    if (!uid) return undefined;
+    return allUsers.find((u) => u.uid === uid) || (creatorUser.uid === uid ? creatorUser : undefined);
+  };
+
+  const reviewerUser = findUser(input.reviewerId) || creatorUser;
+  const listingUser =
+    input.groupType === 'NEW_LISTING'
+      ? isAutoPassListing
+        ? creatorUser
+        : findUser(input.listingAssigneeId) || findUser(input.assigneeIds[0]) || creatorUser
+      : undefined;
+  const goliveUser =
+    input.groupType === 'NEW_LISTING'
+      ? findUser(input.goliveAssigneeId) || findUser(input.assigneeIds[0]) || creatorUser
+      : undefined;
+
+  const effectiveAssigneeIds: string[] =
+    input.groupType === 'EDIT_OLD'
+      ? [creatorUser.uid]
+      : input.groupType === 'NEW_LISTING'
+      ? Array.from(
+          new Set([listingUser?.uid, goliveUser?.uid].filter((id): id is string => Boolean(id)))
+        )
+      : input.assigneeIds;
+
+  const snapshots = buildSnapshots(effectiveAssigneeIds, allUsers, creatorUser);
 
   const ticketRef = doc(collection(db, 'tickets'));
   const counterRef = doc(db, 'config', 'counters');
@@ -250,10 +276,20 @@ export async function createTicket(
       createdBy: creatorUser.uid,
       createdByName: creatorUser.displayName,
       createdByEmail: creatorUser.email,
-      reviewerId: reviewerUser ? reviewerUser.uid : null,
-      reviewerName: reviewerUser ? reviewerUser.displayName : null,
-      reviewerEmail: reviewerUser ? reviewerUser.email : null,
-      assigneeIds: input.assigneeIds,
+      reviewerId: reviewerUser.uid,
+      reviewerName: reviewerUser.displayName,
+      reviewerEmail: reviewerUser.email,
+      ...(input.groupType === 'NEW_LISTING'
+        ? {
+            listingAssigneeId: listingUser?.uid || null,
+            listingAssigneeName: listingUser?.displayName || null,
+            listingAssigneeEmail: listingUser?.email || null,
+            goliveAssigneeId: goliveUser?.uid || null,
+            goliveAssigneeName: goliveUser?.displayName || null,
+            goliveAssigneeEmail: goliveUser?.email || null,
+          }
+        : {}),
+      assigneeIds: effectiveAssigneeIds,
       assigneeSnapshots: snapshots,
       createdAt: now,
       updatedAt: now,
@@ -285,7 +321,7 @@ export async function createTicket(
     tx.set(ticketRef, stripUndefinedDeep(docData));
 
     const baseNote = isAutoPassListing
-      ? `Tạo Listing & chuyển thẳng sang PD (${reviewerUser?.displayName || ''}) kiểm tra`
+      ? `Tạo Listing & chuyển thẳng sang người kiểm tra (${reviewerUser.displayName})`
       : 'Khởi tạo và giao ticket';
 
     tx.set(
@@ -329,9 +365,13 @@ export async function createTicket(
   });
 
   const recipients: string[] =
-    isAutoPassListing && reviewerUser
+    isAutoPassListing
       ? [reviewerUser.email]
-      : input.assigneeIds
+      : input.groupType === 'NEW_LISTING'
+      ? listingUser?.email
+        ? [listingUser.email]
+        : []
+      : effectiveAssigneeIds
           .map((uid) => snapshots[uid]?.email)
           .filter((e): e is string => Boolean(e));
 

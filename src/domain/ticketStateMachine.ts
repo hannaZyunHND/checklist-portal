@@ -49,6 +49,34 @@ export function getTicketReviewerEmail(
   return ticket.reviewerEmail || ticket.createdByEmail;
 }
 
+export function getListingAssigneeId(
+  ticket: Pick<Ticket, 'listingAssigneeId' | 'assigneeIds'>
+): string | undefined {
+  return ticket.listingAssigneeId || ticket.assigneeIds[0];
+}
+
+export function getListingAssigneeEmail(
+  ticket: Pick<Ticket, 'listingAssigneeId' | 'listingAssigneeEmail' | 'assigneeIds' | 'assigneeSnapshots'>
+): string | undefined {
+  if (ticket.listingAssigneeEmail) return ticket.listingAssigneeEmail;
+  const uid = getListingAssigneeId(ticket);
+  return uid ? ticket.assigneeSnapshots[uid]?.email : undefined;
+}
+
+export function getGoliveAssigneeId(
+  ticket: Pick<Ticket, 'goliveAssigneeId' | 'assigneeIds'>
+): string | undefined {
+  return ticket.goliveAssigneeId || ticket.assigneeIds[0];
+}
+
+export function getGoliveAssigneeEmail(
+  ticket: Pick<Ticket, 'goliveAssigneeId' | 'goliveAssigneeEmail' | 'assigneeIds' | 'assigneeSnapshots'>
+): string | undefined {
+  if (ticket.goliveAssigneeEmail) return ticket.goliveAssigneeEmail;
+  const uid = getGoliveAssigneeId(ticket);
+  return uid ? ticket.assigneeSnapshots[uid]?.email : undefined;
+}
+
 export function canDeleteTicket(
   ticket: Pick<Ticket, 'createdBy'>,
   user: Pick<UserProfile, 'uid'>
@@ -87,14 +115,6 @@ export function validateCreateTicketInput(input: CreateTicketInput): ValidationR
   if (!input.deadline || Number.isNaN(input.deadline)) {
     errors.deadline = 'Vui lòng chọn Deadline hợp lệ.';
   }
-  if (!input.assigneeIds || input.assigneeIds.length === 0) {
-    errors.assigneeIds = 'Vui lòng chọn ít nhất 1 nhân sự thực hiện.';
-  } else if (
-    (input.groupType === 'EDIT_OLD' || input.groupType === 'NEW_LISTING') &&
-    input.assigneeIds.length !== 1
-  ) {
-    errors.assigneeIds = 'Nhóm việc này chỉ chọn đúng 1 người thực hiện (vai trò OM).';
-  }
 
   if (input.groupType === 'EDIT_OLD') {
     if (!input.sku?.trim()) {
@@ -103,20 +123,34 @@ export function validateCreateTicketInput(input: CreateTicketInput): ValidationR
     if (!input.editRequirements?.trim()) {
       errors.editRequirements = 'Vui lòng nhập yêu cầu chỉnh sửa.';
     }
+    if (!input.reviewerId?.trim()) {
+      errors.reviewerId = 'Vui lòng chọn người kiểm tra cho Bước 2.';
+    }
   } else if (input.groupType === 'NEW_LISTING') {
     if (!input.productBasicInfo?.trim()) {
       errors.productBasicInfo = 'Vui lòng nhập thông tin sản phẩm cơ bản.';
     }
+    const listingUid = input.listingAssigneeId?.trim() || input.assigneeIds?.[0] || '';
+    const goliveUid = input.goliveAssigneeId?.trim() || input.assigneeIds?.[0] || '';
+    if (!input.autoPassListing && !listingUid) {
+      errors.listingAssigneeId = 'Vui lòng chọn người thực hiện Bước 1 (Listing).';
+    }
     if (!input.reviewerId?.trim()) {
-      errors.reviewerId = 'Vui lòng chọn người kiểm tra (vai trò PD trong task).';
+      errors.reviewerId = 'Vui lòng chọn người kiểm tra cho Bước 2.';
+    }
+    if (!goliveUid) {
+      errors.goliveAssigneeId = 'Vui lòng chọn người thực hiện Bước 3 (GoLive).';
     }
     if (input.autoPassListing && !input.expectedSku?.trim()) {
-      errors.expectedSku = 'Vui lòng nhập SKU dự kiến khi bỏ qua bước OM Listing.';
+      errors.expectedSku = 'Vui lòng nhập SKU dự kiến khi bỏ qua bước Listing.';
     }
     if (input.productUrl?.trim() && !isValidHttpUrl(input.productUrl)) {
       errors.productUrl = 'URL sản phẩm phải bắt đầu bằng http:// hoặc https://.';
     }
   } else if (input.groupType === 'OFFICE') {
+    if (!input.assigneeIds || input.assigneeIds.length === 0) {
+      errors.assigneeIds = 'Vui lòng chọn ít nhất 1 nhân sự thực hiện.';
+    }
     if (!input.officeRequirements?.trim()) {
       errors.officeRequirements = 'Vui lòng nhập yêu cầu công việc.';
     }
@@ -148,30 +182,30 @@ export function getAvailableActions(ticket: Ticket, user: UserProfile): TicketAc
   const isAssignee = ticket.assigneeIds.includes(user.uid);
   const isReviewer = getTicketReviewerId(ticket) === user.uid;
 
-  // Group I: OM thực hiện -> OM GoLive -> Đóng Task (không có PD)
+  // Group I (3 bước): Người tạo tự thực hiện -> Người kiểm tra -> Đóng Task
   if (ticket.groupType === 'EDIT_OLD') {
     if (ticket.status === 'WAITING_OM' && isAssignee) {
       return ['OM_COMPLETE'];
     }
-    if (ticket.status === 'WAITING_GOLIVE' && isAssignee) {
-      return ['OM_CLOSE_EDIT_GOLIVE'];
-    }
-    // Hỗ trợ tương thích ngược cho ticket cũ nếu đang kẹt ở PENDING_PD_CHECK
     if (ticket.status === 'PENDING_PD_CHECK' && isReviewer) {
       return ['PD_CLOSE', 'PD_REJECT_REWORK'];
+    }
+    // Tương thích ngược nếu có ticket cũ đang ở WAITING_GOLIVE
+    if (ticket.status === 'WAITING_GOLIVE' && (isAssignee || isReviewer)) {
+      return ['OM_CLOSE_EDIT_GOLIVE'];
     }
     return [];
   }
 
-  // Group II: OM listing -> PD check -> OM GoLive -> Đóng Task
+  // Group II (4 bước): Listing (Bước 1) -> Kiểm tra (Bước 2) -> GoLive (Bước 3) -> Đóng Task (Bước 4)
   if (ticket.groupType === 'NEW_LISTING') {
-    if (ticket.status === 'WAITING_LISTING' && isAssignee) {
+    if (ticket.status === 'WAITING_LISTING' && getListingAssigneeId(ticket) === user.uid) {
       return ['OM_SUBMIT_LISTING'];
     }
     if (ticket.status === 'PENDING_GOLIVE_APPROVAL' && isReviewer) {
       return ['PD_APPROVE_GOLIVE', 'PD_REJECT_REWORK'];
     }
-    if (ticket.status === 'WAITING_GOLIVE' && isAssignee) {
+    if (ticket.status === 'WAITING_GOLIVE' && getGoliveAssigneeId(ticket) === user.uid) {
       return ['OM_SUBMIT_GOLIVE'];
     }
     // Hỗ trợ tương thích ngược cho ticket cũ đang ở PENDING_CLOSE
@@ -259,15 +293,19 @@ export function computeTransitionResult(
     .filter((e): e is string => Boolean(e));
   const reviewerEmail = getTicketReviewerEmail(ticket);
 
-  // Group I: EDIT_OLD -> OM thực hiện => OM GoLive => Đóng Task
+  // Group I: EDIT_OLD -> Người tạo thực hiện => Người kiểm tra => Đóng Task
   if (ticket.groupType === 'EDIT_OLD') {
     if (action === 'OM_COMPLETE') {
       return {
-        nextStatus: 'WAITING_GOLIVE',
-        ticketPatch: { status: 'WAITING_GOLIVE', updatedAt: nowMs },
+        nextStatus: 'PENDING_PD_CHECK',
+        ticketPatch: { status: 'PENDING_PD_CHECK', updatedAt: nowMs },
         historyAction: 'OM_COMPLETE',
         historyNote: trimmedNote,
-        emailPlan: null,
+        emailPlan: {
+          eventType: 'OM_COMPLETED',
+          recipients: [reviewerEmail],
+          note: trimmedNote,
+        },
       };
     }
     if (action === 'OM_CLOSE_EDIT_GOLIVE') {
@@ -303,8 +341,11 @@ export function computeTransitionResult(
     }
   }
 
-  // Group II: NEW_LISTING -> OM listing => PD check => OM GoLive => Đóng Task
+  // Group II: NEW_LISTING -> Listing (Bước 1) => Kiểm tra (Bước 2) => GoLive (Bước 3) => Đóng Task (Bước 4)
   if (ticket.groupType === 'NEW_LISTING') {
+    const listingEmail = getListingAssigneeEmail(ticket);
+    const goliveEmail = getGoliveAssigneeEmail(ticket);
+
     if (action === 'OM_SUBMIT_LISTING') {
       const expectedSku = payload.expectedSku!.trim();
       return {
@@ -333,7 +374,7 @@ export function computeTransitionResult(
         historyNote: trimmedNote,
         emailPlan: {
           eventType: 'GOLIVE_APPROVED',
-          recipients: assigneeEmails,
+          recipients: goliveEmail ? [goliveEmail] : assigneeEmails,
           expectedSku: ticket.expectedSku || undefined,
           note: trimmedNote,
         },
@@ -358,6 +399,14 @@ export function computeTransitionResult(
     if (action === 'PD_REJECT_REWORK') {
       const backStatus: TicketStatus =
         ticket.status === 'PENDING_CLOSE' ? 'WAITING_GOLIVE' : 'WAITING_LISTING';
+      const reworkRecipients =
+        backStatus === 'WAITING_GOLIVE'
+          ? goliveEmail
+            ? [goliveEmail]
+            : assigneeEmails
+          : listingEmail
+          ? [listingEmail]
+          : assigneeEmails;
       return {
         nextStatus: backStatus,
         ticketPatch: { status: backStatus, updatedAt: nowMs },
@@ -365,7 +414,7 @@ export function computeTransitionResult(
         historyNote: trimmedNote,
         emailPlan: {
           eventType: 'REWORK_REQUESTED',
-          recipients: assigneeEmails,
+          recipients: reworkRecipients,
           note: trimmedNote,
         },
       };

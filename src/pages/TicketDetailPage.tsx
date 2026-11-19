@@ -236,11 +236,7 @@ export function TicketDetailPage({ nowMs }: { nowMs: number }) {
 
         <TicketStepper ticket={ticket} />
 
-        <div
-          className={`grid grid-cols-1 gap-4 border-t border-slate-100 pt-4 text-sm sm:grid-cols-2 ${
-            ticket.groupType === 'EDIT_OLD' ? 'lg:grid-cols-4' : 'lg:grid-cols-5'
-          }`}
-        >
+        <div className="grid grid-cols-1 gap-4 border-t border-slate-100 pt-4 text-sm sm:grid-cols-2 lg:grid-cols-5">
           <div>
             <div className="text-xs text-slate-500">Nhóm nghiệp vụ</div>
             <div className="mt-0.5 font-medium text-slate-900">
@@ -252,19 +248,15 @@ export function TicketDetailPage({ nowMs }: { nowMs: number }) {
             <div className="mt-0.5 font-medium text-slate-900">{ticket.createdByName}</div>
             <div className="text-xs text-slate-500">{ticket.createdByEmail}</div>
           </div>
-          {ticket.groupType !== 'EDIT_OLD' && (
-            <div>
-              <div className="text-xs text-slate-500">
-                {ticket.groupType === 'NEW_LISTING' ? 'Vai trò PD (Kiểm tra/Duyệt)' : 'Người kiểm tra & đóng'}
-              </div>
-              <div className="mt-0.5 font-medium text-slate-900">
-                {ticket.reviewerName || ticket.createdByName}
-              </div>
-              <div className="text-xs text-slate-500">
-                {ticket.reviewerEmail || ticket.createdByEmail}
-              </div>
+          <div>
+            <div className="text-xs text-slate-500">Người kiểm tra</div>
+            <div className="mt-0.5 font-medium text-slate-900">
+              {ticket.reviewerName || ticket.createdByName}
             </div>
-          )}
+            <div className="text-xs text-slate-500">
+              {ticket.reviewerEmail || ticket.createdByEmail}
+            </div>
+          </div>
           <div>
             <div className="text-xs text-slate-500">Thời gian tạo</div>
             <div className="font-mono-code mt-0.5 flex items-center gap-1.5 font-medium text-slate-800">
@@ -458,31 +450,65 @@ export function TicketDetailPage({ nowMs }: { nowMs: number }) {
             })()}
 
             <div className="border-t border-slate-100 pt-3">
-              <div className="text-xs font-medium text-slate-500">
-                {ticket.groupType === 'OFFICE'
-                  ? 'Nhân sự được giao thực hiện'
-                  : 'Vai trò OM (Người thực hiện)'}
-              </div>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {ticket.assigneeIds.map((uid) => {
-                  const snap = ticket.assigneeSnapshots[uid];
-                  return (
-                    <div
-                      key={uid}
-                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 py-1 pr-3 pl-1.5"
-                    >
-                      <UserAvatar
-                        name={snap?.displayName || uid}
-                        avatarDataUrl={snap?.avatarDataUrl}
-                        size="xs"
-                      />
-                      <span className="text-xs font-medium text-slate-800">
-                        {snap?.displayName || uid}
-                      </span>
+              {ticket.groupType === 'NEW_LISTING' ? (
+                <div className="space-y-2">
+                  <div className="text-xs font-medium text-slate-500">
+                    Phân công nhân sự từng bước
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                      <div className="text-[11px] font-medium text-slate-500">Bước 1 · Listing</div>
+                      <div className="mt-0.5 text-xs font-semibold text-slate-900">
+                        {ticket.listingAssigneeName ||
+                          ticket.assigneeSnapshots[ticket.assigneeIds[0]]?.displayName ||
+                          ticket.createdByName}
+                      </div>
                     </div>
-                  );
-                })}
-              </div>
+                    <div className="rounded-lg border border-violet-200 bg-violet-50/50 px-3 py-2">
+                      <div className="text-[11px] font-medium text-violet-700">Bước 2 · Kiểm tra</div>
+                      <div className="mt-0.5 text-xs font-semibold text-slate-900">
+                        {ticket.reviewerName || ticket.createdByName}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-teal-200 bg-teal-50/50 px-3 py-2">
+                      <div className="text-[11px] font-medium text-teal-800">Bước 3 · GoLive</div>
+                      <div className="mt-0.5 text-xs font-semibold text-slate-900">
+                        {ticket.goliveAssigneeName ||
+                          ticket.assigneeSnapshots[ticket.assigneeIds[0]]?.displayName ||
+                          ticket.createdByName}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="text-xs font-medium text-slate-500">
+                    {ticket.groupType === 'OFFICE'
+                      ? 'Nhân sự được giao thực hiện'
+                      : 'Người thực hiện (Bước 1)'}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {ticket.assigneeIds.map((uid) => {
+                      const snap = ticket.assigneeSnapshots[uid];
+                      return (
+                        <div
+                          key={uid}
+                          className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 py-1 pr-3 pl-1.5"
+                        >
+                          <UserAvatar
+                            name={snap?.displayName || uid}
+                            avatarDataUrl={snap?.avatarDataUrl}
+                            size="xs"
+                          />
+                          <span className="text-xs font-medium text-slate-800">
+                            {snap?.displayName || uid}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
