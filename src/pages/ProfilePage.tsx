@@ -7,12 +7,14 @@ import {
   PRESET_AVATARS,
   updateUserProfileInfo,
 } from '../services/authService';
+import { DEPARTMENT_LABELS, type DepartmentType } from '../types/user';
 import { RoleBadge } from '../components/ui/StatusBadge';
 import { UserAvatar } from '../components/ui/UserAvatar';
 
 export function ProfilePage() {
   const { userProfile } = useAuth();
   const [displayName, setDisplayName] = useState(userProfile?.displayName || '');
+  const [department, setDepartment] = useState<DepartmentType>(userProfile?.department || 'OTHER');
   const [avatarDataUrl, setAvatarDataUrl] = useState(userProfile?.avatarDataUrl || '');
   const [imageUrlInput, setImageUrlInput] = useState('');
   const [saving, setSaving] = useState(false);
@@ -22,6 +24,7 @@ export function ProfilePage() {
   useEffect(() => {
     if (userProfile) {
       setDisplayName(userProfile.displayName);
+      setDepartment(userProfile.department || 'OTHER');
       setAvatarDataUrl(userProfile.avatarDataUrl || '');
       if (userProfile.avatarDataUrl?.startsWith('http')) {
         setImageUrlInput(userProfile.avatarDataUrl);
@@ -59,6 +62,7 @@ export function ProfilePage() {
       await updateUserProfileInfo(userProfile.uid, {
         displayName,
         avatarDataUrl,
+        department,
       });
       setMessage({ type: 'ok', text: 'Đã cập nhật thông tin tài khoản thành công.' });
     } catch (err) {
@@ -82,7 +86,7 @@ export function ProfilePage() {
       <div>
         <h1 className="text-xl font-bold text-slate-900 md:text-2xl">Hồ sơ cá nhân</h1>
         <p className="mt-0.5 text-sm text-slate-600">
-          Cập nhật tên hiển thị và ảnh đại diện của bạn.
+          Cập nhật tên hiển thị, bộ phận đang làm và ảnh đại diện của bạn.
         </p>
       </div>
 
@@ -141,7 +145,6 @@ export function ProfilePage() {
           </div>
         </div>
 
-        {/* Preset Avatars */}
         <div>
           <div className="text-xs font-medium text-slate-600">Hoặc chọn màu Avatar mặc định:</div>
           <div className="mt-2 flex flex-wrap gap-2">
@@ -167,7 +170,6 @@ export function ProfilePage() {
           </div>
         </div>
 
-        {/* URL fallback */}
         <div>
           <label htmlFor="profile-avatar-url" className="block text-xs font-medium text-slate-600">
             Hoặc dán URL ảnh đại diện (tùy chọn)
@@ -187,17 +189,35 @@ export function ProfilePage() {
           />
         </div>
 
-        <div>
-          <label htmlFor="profile-name" className="block text-sm font-medium text-slate-800">
-            Tên hiển thị <span className="text-red-600">*</span>
-          </label>
-          <input
-            id="profile-name"
-            type="text"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            className="mt-1.5 min-h-[44px] w-full rounded-lg border border-slate-300 px-3 py-2 text-base text-slate-900 md:text-sm"
-          />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label htmlFor="profile-name" className="block text-sm font-medium text-slate-800">
+              Tên hiển thị <span className="text-red-600">*</span>
+            </label>
+            <input
+              id="profile-name"
+              type="text"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              className="mt-1.5 min-h-[44px] w-full rounded-lg border border-slate-300 px-3 py-2 text-base text-slate-900 md:text-sm"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="profile-dept" className="block text-sm font-medium text-slate-800">
+              Bộ phận đang làm
+            </label>
+            <select
+              id="profile-dept"
+              value={department}
+              onChange={(e) => setDepartment(e.target.value as DepartmentType)}
+              className="mt-1.5 min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 md:text-sm"
+            >
+              <option value="PD">{DEPARTMENT_LABELS.PD}</option>
+              <option value="OM">{DEPARTMENT_LABELS.OM}</option>
+              <option value="OTHER">{DEPARTMENT_LABELS.OTHER}</option>
+            </select>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 rounded-xl bg-slate-50 p-4 sm:grid-cols-2">
@@ -206,7 +226,7 @@ export function ProfilePage() {
             <div className="mt-1 text-sm font-medium text-slate-900">{userProfile.email}</div>
           </div>
           <div>
-            <div className="text-xs text-slate-500">Vai trò hiện tại</div>
+            <div className="text-xs text-slate-500">Quyền tài khoản</div>
             <div className="mt-1">
               <RoleBadge role={userProfile.role} />
             </div>

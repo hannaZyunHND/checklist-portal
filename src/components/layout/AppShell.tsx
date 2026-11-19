@@ -23,12 +23,12 @@ export function AppShell({ children, overdueCount = 0, onOpenCreateTicket }: App
   const { userProfile } = useAuth();
   if (!userProfile) return null;
 
-  const isPD = userProfile.role === 'PD';
+  const isManager = userProfile.role === 'MANAGER';
 
   const navItems = [
     { to: '/', label: 'Tổng quan', icon: LayoutDashboard, end: true },
     { to: '/tickets', label: 'Công việc', icon: ClipboardList, end: false },
-    ...(isPD ? [{ to: '/team', label: 'Nhân sự', icon: Users, end: false }] : []),
+    ...(isManager ? [{ to: '/team', label: 'Tài khoản', icon: Users, end: false }] : []),
     { to: '/profile', label: 'Hồ sơ', icon: UserCircle2, end: false },
   ];
 
@@ -101,9 +101,9 @@ export function AppShell({ children, overdueCount = 0, onOpenCreateTicket }: App
 
           <div className="hidden items-center gap-2 lg:flex">
             <span className="text-xs font-medium text-slate-500">
-              {isPD
-                ? 'Tài khoản PD · Quản lý & Duyệt công việc'
-                : 'Tài khoản OM · Thực hiện & Tạo Listing'}
+              {isManager
+                ? 'Tài khoản Quản lý · Tạo/sửa tài khoản & quản lý task'
+                : 'Tài khoản Nhân viên · Tạo, xem & xử lý task'}
             </span>
           </div>
 
@@ -143,7 +143,7 @@ export function AppShell({ children, overdueCount = 0, onOpenCreateTicket }: App
         className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white lg:hidden"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        <div className={`grid ${isPD ? 'grid-cols-4' : 'grid-cols-3'}`}>
+        <div className={`grid ${isManager ? 'grid-cols-4' : 'grid-cols-3'}`}>
           {navItems.map((item) => {
             const Icon = item.icon;
             return (

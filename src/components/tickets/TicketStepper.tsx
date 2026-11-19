@@ -10,8 +10,8 @@ function getSteps(ticket: Ticket): { steps: StepDef[]; activeIndex: number } {
   if (ticket.groupType === 'EDIT_OLD') {
     const steps: StepDef[] = [
       { key: 'WAITING_OM', label: 'OM Thực hiện' },
-      { key: 'PENDING_PD_CHECK', label: 'PD Kiểm tra' },
-      { key: 'CLOSED', label: 'Đã đóng' },
+      { key: 'WAITING_GOLIVE', label: 'OM GoLive' },
+      { key: 'CLOSED', label: 'Đóng Task' },
     ];
     const activeIndex = steps.findIndex((s) => s.key === ticket.status);
     return { steps, activeIndex: activeIndex === -1 ? 0 : activeIndex };
@@ -19,21 +19,20 @@ function getSteps(ticket: Ticket): { steps: StepDef[]; activeIndex: number } {
 
   if (ticket.groupType === 'NEW_LISTING') {
     const steps: StepDef[] = [
-      { key: 'WAITING_LISTING', label: 'OM Listing (SKU)' },
-      { key: 'PENDING_GOLIVE_APPROVAL', label: 'PD Duyệt GoLive' },
-      { key: 'WAITING_GOLIVE', label: 'OM GoLive (URL)' },
-      { key: 'PENDING_CLOSE', label: 'PD Kiểm tra' },
-      { key: 'CLOSED', label: 'Đã đóng' },
+      { key: 'WAITING_LISTING', label: 'OM Listing' },
+      { key: 'PENDING_GOLIVE_APPROVAL', label: 'PD Check' },
+      { key: 'WAITING_GOLIVE', label: 'OM GoLive' },
+      { key: 'CLOSED', label: 'Đóng Task' },
     ];
     const activeIndex = steps.findIndex((s) => s.key === ticket.status);
-    return { steps, activeIndex: activeIndex === -1 ? 0 : activeIndex };
+    return { steps, activeIndex: activeIndex === -1 ? 2 : activeIndex };
   }
 
   // OFFICE
   const steps: StepDef[] = [
-    { key: 'WAITING_OM', label: 'OM Thực hiện' },
-    { key: 'PENDING_PD_CHECK', label: 'PD Kiểm tra' },
-    { key: 'CLOSED', label: 'Đã đóng' },
+    { key: 'WAITING_OM', label: 'Thực hiện' },
+    { key: 'PENDING_PD_CHECK', label: 'Kiểm tra' },
+    { key: 'CLOSED', label: 'Đóng Task' },
   ];
   const activeIndex = steps.findIndex((s) => s.key === ticket.status);
   return { steps, activeIndex: activeIndex === -1 ? 0 : activeIndex };

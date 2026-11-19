@@ -236,7 +236,11 @@ export function TicketDetailPage({ nowMs }: { nowMs: number }) {
 
         <TicketStepper ticket={ticket} />
 
-        <div className="grid grid-cols-1 gap-4 border-t border-slate-100 pt-4 text-sm sm:grid-cols-2 lg:grid-cols-5">
+        <div
+          className={`grid grid-cols-1 gap-4 border-t border-slate-100 pt-4 text-sm sm:grid-cols-2 ${
+            ticket.groupType === 'EDIT_OLD' ? 'lg:grid-cols-4' : 'lg:grid-cols-5'
+          }`}
+        >
           <div>
             <div className="text-xs text-slate-500">Nhóm nghiệp vụ</div>
             <div className="mt-0.5 font-medium text-slate-900">
@@ -244,19 +248,23 @@ export function TicketDetailPage({ nowMs }: { nowMs: number }) {
             </div>
           </div>
           <div>
-            <div className="text-xs text-slate-500">Người tạo</div>
+            <div className="text-xs text-slate-500">Người khởi tạo request</div>
             <div className="mt-0.5 font-medium text-slate-900">{ticket.createdByName}</div>
             <div className="text-xs text-slate-500">{ticket.createdByEmail}</div>
           </div>
-          <div>
-            <div className="text-xs text-slate-500">Người duyệt (PD)</div>
-            <div className="mt-0.5 font-medium text-slate-900">
-              {ticket.reviewerName || ticket.createdByName}
+          {ticket.groupType !== 'EDIT_OLD' && (
+            <div>
+              <div className="text-xs text-slate-500">
+                {ticket.groupType === 'NEW_LISTING' ? 'Vai trò PD (Kiểm tra/Duyệt)' : 'Người kiểm tra & đóng'}
+              </div>
+              <div className="mt-0.5 font-medium text-slate-900">
+                {ticket.reviewerName || ticket.createdByName}
+              </div>
+              <div className="text-xs text-slate-500">
+                {ticket.reviewerEmail || ticket.createdByEmail}
+              </div>
             </div>
-            <div className="text-xs text-slate-500">
-              {ticket.reviewerEmail || ticket.createdByEmail}
-            </div>
-          </div>
+          )}
           <div>
             <div className="text-xs text-slate-500">Thời gian tạo</div>
             <div className="font-mono-code mt-0.5 flex items-center gap-1.5 font-medium text-slate-800">
@@ -450,7 +458,11 @@ export function TicketDetailPage({ nowMs }: { nowMs: number }) {
             })()}
 
             <div className="border-t border-slate-100 pt-3">
-              <div className="text-xs font-medium text-slate-500">Nhân sự OM được giao</div>
+              <div className="text-xs font-medium text-slate-500">
+                {ticket.groupType === 'OFFICE'
+                  ? 'Nhân sự được giao thực hiện'
+                  : 'Vai trò OM (Người thực hiện)'}
+              </div>
               <div className="mt-2 flex flex-wrap gap-2">
                 {ticket.assigneeIds.map((uid) => {
                   const snap = ticket.assigneeSnapshots[uid];

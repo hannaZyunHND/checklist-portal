@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { AlertCircle, CheckSquare, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { loginAccount, mapAuthErrorMessage, registerAccount } from '../services/authService';
+import { DEPARTMENT_LABELS, type DepartmentType } from '../types/user';
 
 export function AuthPage() {
   const { firebaseUser, userProfile, loading, isConfigured } = useAuth();
@@ -10,6 +11,7 @@ export function AuthPage() {
 
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
+  const [department, setDepartment] = useState<DepartmentType>('OM');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [pdInviteCode, setPdInviteCode] = useState('');
@@ -61,6 +63,7 @@ export function AuthPage() {
           email,
           password,
           displayName,
+          department,
           pdInviteCode: showInviteField ? pdInviteCode : '',
         });
       }
@@ -80,7 +83,7 @@ export function AuthPage() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-900">Joytime Checklist</h1>
-            <p className="text-xs text-slate-600">Kiểm soát tiến độ công việc PD &amp; OM</p>
+            <p className="text-xs text-slate-600">Kiểm soát tiến độ công việc Team PD &amp; OM</p>
           </div>
         </div>
 
@@ -90,12 +93,10 @@ export function AuthPage() {
             className="mt-4 rounded-xl border border-amber-400 bg-amber-50 p-3 text-xs text-amber-900"
           >
             <strong>Chưa cấu hình Firebase:</strong> Hãy tạo file <code>.env.local</code> từ{' '}
-            <code>.env.example</code> (hoặc cấu hình GitHub Secrets) để kết nối Firebase Auth &amp;
-            Firestore Free.
+            <code>.env.example</code> để kết nối Firebase Auth &amp; Firestore Free.
           </div>
         )}
 
-        {/* Mode Tabs */}
         <div className="mt-6 grid grid-cols-2 rounded-xl bg-slate-100 p-1">
           <button
             type="button"
@@ -135,20 +136,38 @@ export function AuthPage() {
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-4" noValidate>
           {mode === 'register' && (
-            <div>
-              <label htmlFor="auth-name" className="block text-sm font-medium text-slate-800">
-                Tên hiển thị <span className="text-red-600">*</span>
-              </label>
-              <input
-                id="auth-name"
-                type="text"
-                autoComplete="name"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="VD: Nguyễn Minh"
-                className="mt-1.5 min-h-[48px] w-full rounded-lg border border-slate-300 px-3 py-2 text-base text-slate-900"
-              />
-            </div>
+            <>
+              <div>
+                <label htmlFor="auth-name" className="block text-sm font-medium text-slate-800">
+                  Tên hiển thị <span className="text-red-600">*</span>
+                </label>
+                <input
+                  id="auth-name"
+                  type="text"
+                  autoComplete="name"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="VD: Nguyễn Minh"
+                  className="mt-1.5 min-h-[48px] w-full rounded-lg border border-slate-300 px-3 py-2 text-base text-slate-900"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="auth-dept" className="block text-sm font-medium text-slate-800">
+                  Bộ phận đang làm
+                </label>
+                <select
+                  id="auth-dept"
+                  value={department}
+                  onChange={(e) => setDepartment(e.target.value as DepartmentType)}
+                  className="mt-1.5 min-h-[48px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base text-slate-900"
+                >
+                  <option value="OM">{DEPARTMENT_LABELS.OM}</option>
+                  <option value="PD">{DEPARTMENT_LABELS.PD}</option>
+                  <option value="OTHER">{DEPARTMENT_LABELS.OTHER}</option>
+                </select>
+              </div>
+            </>
           )}
 
           <div>
@@ -214,23 +233,22 @@ export function AuthPage() {
 
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <p className="text-xs text-slate-600">
-                  Mặc định tài khoản đăng ký mới có vai trò <strong>OM (Thực hiện)</strong>. Nếu
-                  bạn là <strong>PD (Quản lý)</strong>, hãy nhập mã mời PD hoặc nhờ PD hiện tại
-                  cấp quyền sau khi đăng ký.
+                  Mặc định tài khoản tự đăng ký là <strong>Nhân viên</strong>. Nếu bạn là{' '}
+                  <strong>Quản lý</strong>, hãy nhập mã mời Quản lý hoặc nhờ Quản lý nâng quyền.
                 </p>
                 <button
                   type="button"
                   onClick={() => setShowInviteField((v) => !v)}
                   className="mt-1.5 text-xs font-semibold text-teal-700 underline"
                 >
-                  {showInviteField ? 'Ẩn ô mã mời PD' : 'Tôi có mã mời PD'}
+                  {showInviteField ? 'Ẩn ô mã mời Quản lý' : 'Tôi có mã mời Quản lý'}
                 </button>
                 {showInviteField && (
                   <input
                     type="text"
                     value={pdInviteCode}
                     onChange={(e) => setPdInviteCode(e.target.value)}
-                    placeholder="Nhập mã mời PD (tùy chọn)"
+                    placeholder="Nhập mã mời Quản lý (tùy chọn)"
                     className="mt-2 min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"
                   />
                 )}

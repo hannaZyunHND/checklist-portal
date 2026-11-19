@@ -1,6 +1,14 @@
+import { getApps, initializeApp } from 'firebase/app';
+import { createUserWithEmailAndPassword, getAuth, signOut, updateProfile } from 'firebase/auth';
 import { collection, doc, onSnapshot, orderBy, query, setDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../config/firebase';
-import type { UserProfile, UserRole } from '../types/user';
+import { auth, db } from '../config/firebase';
+import {
+  inferDefaultDepartment,
+  normalizeUserRole,
+  type DepartmentType,
+  type UserProfile,
+  type UserRole,
+} from '../types/user';
 
 export interface AppConfigDoc {
   bootstrapPdEmails: string[];
@@ -9,14 +17,33 @@ export interface AppConfigDoc {
   gasSharedSecret: string;
 }
 
+export interface AdminCreateUserInput {
+  displayName: string;
+  email: string;
+  password: string;
+  role: UserRole;
+  department: DepartmentType;
+}
+
+export interface AdminUpdateUserInput {
+  displayName: string;
+  role: UserRole;
+  department: DepartmentType;
+}
+
 export function subscribeTeamUsers(callback: (users: UserProfile[]) => void): () => void {
   const q = query(collection(db, 'users'), orderBy('displayName', 'asc'));
   return onSnapshot(
     q,
     (snap) => {
       const items = snap.docs.map((d) => {
-        const data = d.data() as Omit<UserProfile, 'uid'>;
-        return { uid: d.id, ...data };
+        const data = d.data() as Omit<UserProfile, 'uid' | 'role'> & { role?: string };
+        return {
+          ...data,
+          uid: d.id,
+          role: normalizeUserRole(data.role),
+          department: inferDefaultDepartment(data.role, data.department),
+        };
       });
       callback(items);
     },
@@ -24,9 +51,54 @@ export function subscribeTeamUsers(callback: (users: UserProfile[]) => void): ()
   );
 }
 
-export async function updateMemberRole(uid: string, role: UserRole): Promise<void> {
+export async function adminCreateUserAccount(input: AdminCreateUserInput): Promise<UserProfile> {
+  const cleanName = input.displayName.trim();
+  const cleanEmail = input.email.trim().toLowerCase();
+  if (!cleanName) throw new Error('Vui lòng nhập tên hiển thị.');
+  if (!cleanEmail) throw new Error('Vui lòng nhập email.');
+  if (input.password.length < 6) throw new Error('Mật khẩu phải có ít nhất 6 ký tự.');
+
+  const secondaryAppName = 'admin-user-creator';
+  const secondaryApp =
+    getApps().find((a) => a.name === secondaryAppName) ||
+    initializeApp(auth.app.options, secondaryAppName);
+  const secondaryAuth = getAuth(secondaryApp);
+
+  const cred = await createUserWithEmailAndPassword(secondaryAuth, cleanEmail, input.password);
+  try {
+    await updateProfile(cred.user, { displayName: cleanName });
+  } finally {
+    await signOut(secondaryAuth).catch(() => {});
+  }
+
+  const now = Date.now();
+  const profile: UserProfile = {
+    uid: cred.user.uid,
+    email: cleanEmail,
+    displayName: cleanName,
+    avatarDataUrl: '',
+    role: input.role,
+    department: input.department,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await setDoc(doc(db, 'users', cred.user.uid), profile);
+  return profile;
+}
+
+export async function adminUpdateUserAccount(
+  uid: string,
+  updates: AdminUpdateUserInput
+): Promise<void> {
+  const cleanName = updates.displayName.trim();
+  if (!cleanName) {
+    throw new Error('Tên hiển thị không được để trống.');
+  }
   await updateDoc(doc(db, 'users', uid), {
-    role,
+    displayName: cleanName,
+    role: updates.role,
+    department: updates.department,
     updatedAt: Date.now(),
   });
 }

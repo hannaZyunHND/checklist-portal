@@ -14,7 +14,12 @@ import {
   type TicketGroupType,
   type TicketStatus,
 } from '../../types/ticket';
-import type { UserRole } from '../../types/user';
+import {
+  ACCOUNT_ROLE_LABELS,
+  normalizeUserRole,
+  type DepartmentType,
+  type UserRole,
+} from '../../types/user';
 
 const STATUS_STYLE: Record<
   TicketStatus,
@@ -103,14 +108,30 @@ export function OverdueBadge({ label = 'Quá hạn' }: { label?: string }) {
   );
 }
 
-export function RoleBadge({ role }: { role: UserRole }) {
-  return role === 'PD' ? (
+export function RoleBadge({ role }: { role: UserRole | 'PD' | 'OM' }) {
+  const normalized = normalizeUserRole(role);
+  return normalized === 'MANAGER' ? (
     <span className="inline-flex items-center whitespace-nowrap rounded-md border border-teal-300 bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-800">
-      PD · Quản lý
+      {ACCOUNT_ROLE_LABELS.MANAGER}
     </span>
   ) : (
     <span className="inline-flex items-center whitespace-nowrap rounded-md border border-slate-300 bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
-      OM · Thực hiện
+      {ACCOUNT_ROLE_LABELS.STAFF}
+    </span>
+  );
+}
+
+export function DepartmentBadge({ department }: { department?: DepartmentType }) {
+  if (!department || department === 'OTHER') return null;
+  return (
+    <span
+      className={`inline-flex items-center whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] font-semibold ${
+        department === 'PD'
+          ? 'bg-violet-50 text-violet-800 border border-violet-200'
+          : 'bg-sky-50 text-sky-800 border border-sky-200'
+      }`}
+    >
+      {department}
     </span>
   );
 }

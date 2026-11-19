@@ -9,10 +9,10 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(uid)).data;
     }
 
-    function isPD() {
+    function isManager() {
       return isSignedIn()
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && userDoc(request.auth.uid).role == 'PD';
+        && (userDoc(request.auth.uid).role == 'MANAGER' || userDoc(request.auth.uid).role == 'PD');
     }
 
     function appConfigExists() {
@@ -23,14 +23,14 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/config/app).data;
     }
 
-    function isBootstrapPdEmail() {
+    function isBootstrapManagerEmail() {
       return appConfigExists()
         && ('bootstrapPdEmails' in appConfigData())
         && request.auth.token.email != null
         && request.auth.token.email.lower() in appConfigData().bootstrapPdEmails;
     }
 
-    function isValidPdInvite() {
+    function isValidManagerInvite() {
       return appConfigExists()
         && ('pdInviteCode' in appConfigData())
         && appConfigData().pdInviteCode != ''
@@ -46,12 +46,21 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
-        && request.auth.uid == uid
         && (
-          request.resource.data.role == 'OM'
-          || (request.resource.data.role == 'PD' && (isBootstrapPdEmail() || isValidPdInvite()))
+          isManager()
+          || (
+            request.auth.uid == uid
+            && (
+              request.resource.data.role == 'STAFF'
+              || request.resource.data.role == 'OM'
+              || (
+                (request.resource.data.role == 'MANAGER' || request.resource.data.role == 'PD')
+                && (isBootstrapManagerEmail() || isValidManagerInvite())
+              )
+            )
+          )
         );
-      allow update: if isPD()
+      allow update: if isManager()
         || (
           isSignedIn()
           && request.auth.uid == uid
@@ -74,7 +83,6 @@ service cloud.firestore {
           isTicketReviewer(resource.data)
           || (
             request.auth.uid in resource.data.assigneeIds
-            && request.resource.data.status != 'CLOSED'
             && request.resource.data.createdBy == resource.data.createdBy
             && request.resource.data.groupType == resource.data.groupType
             && request.resource.data.assigneeIds == resource.data.assigneeIds

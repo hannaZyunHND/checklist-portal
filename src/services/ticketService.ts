@@ -166,19 +166,22 @@ export async function createTicket(
   creatorUser: UserProfile,
   allUsers: UserProfile[]
 ): Promise<{ ticket: Ticket; emailResult: EmailDispatchResult }> {
-  const validation = validateCreateTicketInput(input, creatorUser.role);
+  const validation = validateCreateTicketInput(input);
   if (!validation.valid) {
     throw new Error(Object.values(validation.errors)[0] || 'Thông tin ticket chưa hợp lệ.');
   }
 
   const now = Date.now();
-  const initialStatus = getInitialStatusForCreation(input.groupType, creatorUser.role);
+  const initialStatus = getInitialStatusForCreation(input);
   const snapshots = buildSnapshots(input.assigneeIds, allUsers);
-  const reviewerUser =
-    (input.reviewerId ? allUsers.find((u) => u.uid === input.reviewerId) : undefined) ||
-    creatorUser;
 
-  const isOmAutoListing = input.groupType === 'NEW_LISTING' && creatorUser.role === 'OM';
+  const needsReviewer = input.groupType !== 'EDIT_OLD';
+  const reviewerUser = needsReviewer
+    ? (input.reviewerId ? allUsers.find((u) => u.uid === input.reviewerId) : undefined) ||
+      creatorUser
+    : null;
+
+  const isAutoPassListing = input.groupType === 'NEW_LISTING' && Boolean(input.autoPassListing);
 
   const ticketRef = doc(collection(db, 'tickets'));
   const counterRef = doc(db, 'config', 'counters');
@@ -247,9 +250,9 @@ export async function createTicket(
       createdBy: creatorUser.uid,
       createdByName: creatorUser.displayName,
       createdByEmail: creatorUser.email,
-      reviewerId: reviewerUser.uid,
-      reviewerName: reviewerUser.displayName,
-      reviewerEmail: reviewerUser.email,
+      reviewerId: reviewerUser ? reviewerUser.uid : null,
+      reviewerName: reviewerUser ? reviewerUser.displayName : null,
+      reviewerEmail: reviewerUser ? reviewerUser.email : null,
       assigneeIds: input.assigneeIds,
       assigneeSnapshots: snapshots,
       createdAt: now,
@@ -279,59 +282,66 @@ export async function createTicket(
     };
 
     tx.set(counterRef, { ...counters, [input.groupType]: nextNum }, { merge: true });
-    tx.set(ticketRef, docData);
+    tx.set(ticketRef, stripUndefinedDeep(docData));
 
-    const baseNote = isOmAutoListing
-      ? `OM tạo Listing & auto-pass bước OM Listing sang chờ PD (${reviewerUser.displayName}) duyệt GoLive`
+    const baseNote = isAutoPassListing
+      ? `Tạo Listing & chuyển thẳng sang PD (${reviewerUser?.displayName || ''}) kiểm tra`
       : 'Khởi tạo và giao ticket';
 
-    tx.set(historyRef, {
-      ticketId: ticketRef.id,
-      actorId: creatorUser.uid,
-      actorName: creatorUser.displayName,
-      actorRole: creatorUser.role,
-      action: 'CREATE',
-      fromStatus: null,
-      toStatus: initialStatus,
-      note:
-        uploadedAttachments.length > 0
-          ? `${baseNote} (đính kèm ${uploadedAttachments.length} tệp)`
-          : baseNote,
-      ...(isOmAutoListing
-        ? {
-            metadata: {
-              ...(expectedSkuVal ? { expectedSku: expectedSkuVal } : {}),
-              ...(productUrlVal ? { productUrl: productUrlVal } : {}),
-            },
-          }
-        : {}),
-      createdAt: now,
-    });
+    tx.set(
+      historyRef,
+      stripUndefinedDeep({
+        ticketId: ticketRef.id,
+        actorId: creatorUser.uid,
+        actorName: creatorUser.displayName,
+        actorRole: creatorUser.role,
+        action: 'CREATE',
+        fromStatus: null,
+        toStatus: initialStatus,
+        note:
+          uploadedAttachments.length > 0
+            ? `${baseNote} (đính kèm ${uploadedAttachments.length} tệp)`
+            : baseNote,
+        ...(isAutoPassListing
+          ? {
+              metadata: {
+                ...(expectedSkuVal ? { expectedSku: expectedSkuVal } : {}),
+                ...(productUrlVal ? { productUrl: productUrlVal } : {}),
+              },
+            }
+          : {}),
+        createdAt: now,
+      })
+    );
 
     uploadedAttachments.forEach((att, idx) => {
       const attRef = doc(collection(db, 'tickets', ticketRef.id, 'attachments'));
-      tx.set(attRef, {
-        ...att,
-        createdAt: now + idx,
-      });
+      tx.set(
+        attRef,
+        stripUndefinedDeep({
+          ...att,
+          createdAt: now + idx,
+        })
+      );
     });
 
     createdTicket = { id: ticketRef.id, ...docData };
   });
 
-  const recipients: string[] = isOmAutoListing
-    ? [reviewerUser.email]
-    : input.assigneeIds
-        .map((uid) => snapshots[uid]?.email)
-        .filter((e): e is string => Boolean(e));
+  const recipients: string[] =
+    isAutoPassListing && reviewerUser
+      ? [reviewerUser.email]
+      : input.assigneeIds
+          .map((uid) => snapshots[uid]?.email)
+          .filter((e): e is string => Boolean(e));
 
-  const eventType: EmailEventType = isOmAutoListing ? 'OM_COMPLETED' : 'TICKET_CREATED';
+  const eventType: EmailEventType = isAutoPassListing ? 'OM_COMPLETED' : 'TICKET_CREATED';
   const overrideConfig = await readAppEmailConfig();
   const emailResult = await dispatchTicketEmail({
     ticket: createdTicket,
     eventType,
     recipients,
-    actorName: `${creatorUser.displayName} (${creatorUser.role})`,
+    actorName: creatorUser.displayName,
     expectedSku: createdTicket.expectedSku || undefined,
     productUrl: createdTicket.productUrl || undefined,
     overrideConfig,
@@ -390,7 +400,7 @@ export async function performTicketTransition(params: {
       ticket: updatedTicket,
       eventType: emailPlan.eventType,
       recipients: emailPlan.recipients,
-      actorName: `${actor.displayName} (${actor.role})`,
+      actorName: actor.displayName,
       note: emailPlan.note,
       expectedSku: emailPlan.expectedSku,
       productUrl: emailPlan.productUrl,

@@ -143,13 +143,13 @@ export function TicketActionPanel({
             : ticket.groupType === 'OFFICE' &&
               ticket.assigneeIds.includes(currentUser.uid) &&
               ticket.assigneeStates?.[currentUser.uid]?.completed
-            ? 'Bạn đã tích hoàn thành phần việc của mình. Hệ thống đang chờ các nhân sự còn lại hoàn tất để báo người duyệt.'
+            ? 'Bạn đã tích hoàn thành phần việc của mình. Hệ thống đang chờ các nhân sự còn lại hoàn tất để báo người kiểm tra.'
             : (ticket.status === 'PENDING_PD_CHECK' ||
                 ticket.status === 'PENDING_GOLIVE_APPROVAL' ||
                 ticket.status === 'PENDING_CLOSE') &&
               getTicketReviewerId(ticket) !== currentUser.uid
-            ? `Đang chờ người duyệt được chỉ định (${ticket.reviewerName || ticket.createdByName}) kiểm tra. Các tài khoản khác chỉ có quyền xem.`
-            : 'Hiện tại bạn không có thao tác xử lý ở bước này (đang chờ bên được giao phản hồi).'}
+            ? `Đang chờ người kiểm tra được gán (${ticket.reviewerName || ticket.createdByName}) xử lý. Các tài khoản khác chỉ có quyền xem.`
+            : 'Hiện tại bạn không có thao tác xử lý ở bước này (đang chờ người được gán vai trò tương ứng xử lý).'}
         </div>
       ) : (
         <div className="space-y-4">
@@ -271,8 +271,26 @@ export function TicketActionPanel({
                 <span>
                   {ticket.groupType === 'OFFICE'
                     ? 'Tích hoàn thành phần của tôi'
+                    : ticket.groupType === 'EDIT_OLD'
+                    ? 'Hoàn thành sửa → Chuyển GoLive'
                     : 'Tích hoàn thành'}
                 </span>
+              </button>
+            )}
+
+            {actions.includes('OM_CLOSE_EDIT_GOLIVE') && (
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => runAction('OM_CLOSE_EDIT_GOLIVE')}
+                className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:opacity-50"
+              >
+                {submitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Rocket className="h-4 w-4" aria-hidden="true" />
+                )}
+                <span>Xác nhận GoLive &amp; Đóng Task</span>
               </button>
             )}
 
@@ -288,7 +306,7 @@ export function TicketActionPanel({
                 ) : (
                   <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                 )}
-                <span>Hoàn thành Listing & Gửi PD</span>
+                <span>Hoàn thành Listing &amp; Gửi PD check</span>
               </button>
             )}
 
@@ -304,7 +322,7 @@ export function TicketActionPanel({
                 ) : (
                   <Rocket className="h-4 w-4" aria-hidden="true" />
                 )}
-                <span>Gửi URL hoàn tất GoLive</span>
+                <span>Hoàn tất GoLive &amp; Đóng Task</span>
               </button>
             )}
 

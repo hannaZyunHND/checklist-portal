@@ -11,42 +11,35 @@ import { computeStatistics, isTicketOverdue } from './ticketStats';
 import type { Ticket } from '../types/ticket';
 import type { UserProfile } from '../types/user';
 
-const pd1: UserProfile = {
-  uid: 'pd-1',
-  email: 'pd1@joytime.vn',
-  displayName: 'Minh PD 1',
+const manager1: UserProfile = {
+  uid: 'mgr-1',
+  email: 'mgr1@joytime.vn',
+  displayName: 'Minh Quản lý',
   avatarDataUrl: '',
-  role: 'PD',
+  role: 'MANAGER',
+  department: 'PD',
   createdAt: 1000,
   updatedAt: 1000,
 };
 
-const pd2: UserProfile = {
-  uid: 'pd-2',
-  email: 'pd2@joytime.vn',
-  displayName: 'Nam PD 2',
+const staff1: UserProfile = {
+  uid: 'stf-1',
+  email: 'stf1@joytime.vn',
+  displayName: 'Lan Nhân viên',
   avatarDataUrl: '',
-  role: 'PD',
+  role: 'STAFF',
+  department: 'OM',
   createdAt: 1000,
   updatedAt: 1000,
 };
 
-const om1: UserProfile = {
-  uid: 'om-1',
-  email: 'om1@joytime.vn',
-  displayName: 'Lan OM',
+const staff2: UserProfile = {
+  uid: 'stf-2',
+  email: 'stf2@joytime.vn',
+  displayName: 'Hùng Nhân viên',
   avatarDataUrl: '',
-  role: 'OM',
-  createdAt: 1000,
-  updatedAt: 1000,
-};
-
-const om2: UserProfile = {
-  uid: 'om-2',
-  email: 'om2@joytime.vn',
-  displayName: 'Hùng OM',
-  avatarDataUrl: '',
-  role: 'OM',
+  role: 'STAFF',
+  department: 'PD',
   createdAt: 1000,
   updatedAt: 1000,
 };
@@ -59,17 +52,17 @@ function makeBaseTicket(overrides: Partial<Ticket>): Ticket {
     title: 'Kiểm tra SKU áo thun',
     status: 'WAITING_OM',
     deadline: 50000,
-    createdBy: pd1.uid,
-    createdByName: pd1.displayName,
-    createdByEmail: pd1.email,
-    reviewerId: pd1.uid,
-    reviewerName: pd1.displayName,
-    reviewerEmail: pd1.email,
-    assigneeIds: [om1.uid],
+    createdBy: manager1.uid,
+    createdByName: manager1.displayName,
+    createdByEmail: manager1.email,
+    reviewerId: manager1.uid,
+    reviewerName: manager1.displayName,
+    reviewerEmail: manager1.email,
+    assigneeIds: [staff1.uid],
     assigneeSnapshots: {
-      [om1.uid]: { uid: om1.uid, displayName: om1.displayName, email: om1.email, avatarDataUrl: '' },
-      [om2.uid]: { uid: om2.uid, displayName: om2.displayName, email: om2.email, avatarDataUrl: '' },
-      [pd2.uid]: { uid: pd2.uid, displayName: pd2.displayName, email: pd2.email, avatarDataUrl: '' },
+      [staff1.uid]: { uid: staff1.uid, displayName: staff1.displayName, email: staff1.email, avatarDataUrl: '' },
+      [staff2.uid]: { uid: staff2.uid, displayName: staff2.displayName, email: staff2.email, avatarDataUrl: '' },
+      [manager1.uid]: { uid: manager1.uid, displayName: manager1.displayName, email: manager1.email, avatarDataUrl: '' },
     },
     createdAt: 1000,
     updatedAt: 1000,
@@ -78,251 +71,190 @@ function makeBaseTicket(overrides: Partial<Ticket>): Ticket {
   };
 }
 
-describe('Create Ticket Validation & OM Listing Auto-Pass', () => {
-  it('requires SKU and editRequirements for Group I', () => {
-    const res = validateCreateTicketInput({
+describe('Create Ticket Validation & Role-in-Task Assignment', () => {
+  it('allows any account (MANAGER or STAFF) to create any of the 3 groups and only creator can delete', () => {
+    const editByStaff = validateCreateTicketInput({
       groupType: 'EDIT_OLD',
-      title: 'Test',
+      title: 'Sửa giá',
+      sku: 'SKU-1',
+      editRequirements: 'Giảm 10%',
       deadline: 999999,
-      assigneeIds: [om1.uid],
+      assigneeIds: [manager1.uid],
     });
-    expect(res.valid).toBe(false);
-    expect(res.errors.sku).toBeTruthy();
-    expect(res.errors.editRequirements).toBeTruthy();
-  });
+    expect(editByStaff.valid).toBe(true);
 
-  it('blocks OM from creating EDIT_OLD or OFFICE tickets', () => {
-    const editRes = validateCreateTicketInput(
-      {
-        groupType: 'EDIT_OLD',
-        title: 'Test',
-        sku: 'SKU-1',
-        editRequirements: 'Req',
-        deadline: 999999,
-        assigneeIds: [om1.uid],
-      },
-      'OM'
-    );
-    expect(editRes.valid).toBe(false);
-    expect(editRes.errors.groupType).toBeTruthy();
-
-    const officeRes = validateCreateTicketInput(
-      {
-        groupType: 'OFFICE',
-        title: 'Test VP',
-        officeRequirements: 'Req',
-        deadline: 999999,
-        assigneeIds: [om1.uid],
-      },
-      'OM'
-    );
-    expect(officeRes.valid).toBe(false);
-    expect(officeRes.errors.groupType).toBeTruthy();
-  });
-
-  it('requires expectedSku, productUrl, and assigned PD reviewer when OM creates NEW_LISTING and auto-passes listing step', () => {
-    const missing = validateCreateTicketInput(
-      {
-        groupType: 'NEW_LISTING',
-        title: 'OM Listing SP',
-        productBasicInfo: 'Sản phẩm A',
-        deadline: 999999,
-        assigneeIds: [om1.uid],
-      },
-      'OM'
-    );
-    expect(missing.valid).toBe(false);
-    expect(missing.errors.expectedSku).toBeTruthy();
-    expect(missing.errors.productUrl).toBeTruthy();
-    expect(missing.errors.reviewerId).toBeTruthy();
-
-    const valid = validateCreateTicketInput(
-      {
-        groupType: 'NEW_LISTING',
-        title: 'OM Listing SP',
-        productBasicInfo: 'Sản phẩm A',
-        expectedSku: 'SKU-OM-01',
-        productUrl: 'https://joytime.vn/sp-a',
-        reviewerId: pd2.uid,
-        deadline: 999999,
-        assigneeIds: [om1.uid],
-      },
-      'OM'
-    );
-    expect(valid.valid).toBe(true);
-    expect(getInitialStatusForCreation('NEW_LISTING', 'OM')).toBe('PENDING_GOLIVE_APPROVAL');
-    expect(getInitialStatusForCreation('NEW_LISTING', 'PD')).toBe('WAITING_LISTING');
-  });
-
-  it('allows only assigned reviewer PD (not other PDs) to approve/reject, and only creator to delete', () => {
-    const omCreatedListing = makeBaseTicket({
-      code: 'LS-0009',
+    const listingByStaff = validateCreateTicketInput({
       groupType: 'NEW_LISTING',
-      status: 'PENDING_GOLIVE_APPROVAL',
-      createdBy: om1.uid,
-      createdByName: om1.displayName,
-      createdByEmail: om1.email,
-      reviewerId: pd2.uid,
-      reviewerName: pd2.displayName,
-      reviewerEmail: pd2.email,
-      assigneeIds: [om1.uid],
-      expectedSku: 'SKU-OM-01',
-      productUrl: 'https://joytime.vn/sp-a',
+      title: 'Listing mới',
+      productBasicInfo: 'Bình nước',
+      expectedSku: 'SKU-NEW',
+      autoPassListing: true,
+      reviewerId: staff2.uid,
+      deadline: 999999,
+      assigneeIds: [staff1.uid],
     });
+    expect(listingByStaff.valid).toBe(true);
+    expect(
+      getInitialStatusForCreation({ groupType: 'NEW_LISTING', autoPassListing: true })
+    ).toBe('PENDING_GOLIVE_APPROVAL');
+    expect(
+      getInitialStatusForCreation({ groupType: 'NEW_LISTING', autoPassListing: false })
+    ).toBe('WAITING_LISTING');
 
-    // Assigned PD (pd2) can approve/reject; pd1 CANNOT interact with approval
-    expect(getAvailableActions(omCreatedListing, pd2)).toEqual([
-      'PD_APPROVE_GOLIVE',
-      'PD_REJECT_REWORK',
-    ]);
-    expect(getAvailableActions(omCreatedListing, pd1)).toEqual([]);
-
-    // Only creator (om1) can delete; pd1 and pd2 cannot delete
-    expect(canDeleteTicket(omCreatedListing, om1)).toBe(true);
-    expect(canDeleteTicket(omCreatedListing, pd1)).toBe(false);
-    expect(canDeleteTicket(omCreatedListing, pd2)).toBe(false);
+    const ticket = makeBaseTicket({ createdBy: staff1.uid, reviewerId: staff2.uid });
+    expect(canDeleteTicket(ticket, staff1)).toBe(true);
+    expect(canDeleteTicket(ticket, manager1)).toBe(false);
+    expect(canDeleteTicket(ticket, staff2)).toBe(false);
   });
 });
 
-describe('Group I (EDIT_OLD) State Machine & Cross-Role Assignment', () => {
-  it('allows assigning a PD as executor and keeps reviewer separate', () => {
+describe('Group I (EDIT_OLD): OM thực hiện => OM GoLive => Đóng Task (không có PD)', () => {
+  it('runs WAITING_OM -> WAITING_GOLIVE -> CLOSED purely by task OM assignee', () => {
     let ticket = makeBaseTicket({
       groupType: 'EDIT_OLD',
       status: 'WAITING_OM',
-      assigneeIds: [pd2.uid],
+      reviewerId: null,
+      reviewerName: null,
+      reviewerEmail: null,
+      assigneeIds: [staff1.uid],
     });
 
-    expect(getAvailableActions(ticket, pd2)).toEqual(['OM_COMPLETE']);
-    expect(getAvailableActions(ticket, pd1)).toEqual([]);
+    expect(getAvailableActions(ticket, staff1)).toEqual(['OM_COMPLETE']);
+    expect(getAvailableActions(ticket, manager1)).toEqual([]);
 
-    const step1 = computeTransitionResult(ticket, pd2, 'OM_COMPLETE', { note: 'PD2 đã xử lý' }, 2000);
-    expect(step1.nextStatus).toBe('PENDING_PD_CHECK');
-    expect(step1.emailPlan?.recipients).toEqual([pd1.email]);
+    const step1 = computeTransitionResult(ticket, staff1, 'OM_COMPLETE', { note: 'Đã sửa' }, 2000);
+    expect(step1.nextStatus).toBe('WAITING_GOLIVE');
+    expect(step1.emailPlan).toBeNull();
 
     ticket = { ...ticket, ...step1.ticketPatch };
-    expect(getAvailableActions(ticket, pd1)).toEqual(['PD_CLOSE', 'PD_REJECT_REWORK']);
-    expect(getAvailableActions(ticket, pd2)).toEqual([]);
+    expect(getAvailableActions(ticket, staff1)).toEqual(['OM_CLOSE_EDIT_GOLIVE']);
+    expect(getAvailableActions(ticket, manager1)).toEqual([]);
 
-    const step2 = computeTransitionResult(ticket, pd1, 'PD_CLOSE', {}, 3000);
+    const step2 = computeTransitionResult(
+      ticket,
+      staff1,
+      'OM_CLOSE_EDIT_GOLIVE',
+      { note: 'Đã GoLive cập nhật' },
+      3000
+    );
     expect(step2.nextStatus).toBe('CLOSED');
+    expect(step2.ticketPatch.closedAt).toBe(3000);
   });
 });
 
-describe('Group II (NEW_LISTING) State Machine', () => {
-  it('enforces SKU on listing, GoLive approval, URL on GoLive, and reject-to-GoLive', () => {
+describe('Group II (NEW_LISTING): OM listing => PD check => OM GoLive => Đóng Task', () => {
+  it('enforces SKU on listing, assigned PD check (blocks other accounts), and closes directly when OM submits GoLive URL', () => {
     let ticket = makeBaseTicket({
       code: 'LS-0001',
       groupType: 'NEW_LISTING',
       status: 'WAITING_LISTING',
+      createdBy: staff1.uid,
+      assigneeIds: [staff1.uid],
+      reviewerId: staff2.uid,
+      reviewerName: staff2.displayName,
+      reviewerEmail: staff2.email,
     });
 
-    const missingSku = validateTransition(ticket, om1, 'OM_SUBMIT_LISTING', {});
+    const missingSku = validateTransition(ticket, staff1, 'OM_SUBMIT_LISTING', {});
     expect(missingSku.valid).toBe(false);
 
     const s1 = computeTransitionResult(
       ticket,
-      om1,
+      staff1,
       'OM_SUBMIT_LISTING',
       { expectedSku: 'JT-NEW-888' },
       2000
     );
     expect(s1.nextStatus).toBe('PENDING_GOLIVE_APPROVAL');
-    expect(s1.ticketPatch.expectedSku).toBe('JT-NEW-888');
-    expect(s1.emailPlan?.recipients).toEqual([pd1.email]);
+    expect(s1.emailPlan?.recipients).toEqual([staff2.email]);
 
     ticket = { ...ticket, ...s1.ticketPatch };
-    const s2 = computeTransitionResult(ticket, pd1, 'PD_APPROVE_GOLIVE', {}, 3000);
+    // Only assigned reviewer (staff2) can approve/reject; manager1 & staff1 cannot
+    expect(getAvailableActions(ticket, staff2)).toEqual(['PD_APPROVE_GOLIVE', 'PD_REJECT_REWORK']);
+    expect(getAvailableActions(ticket, manager1)).toEqual([]);
+    expect(getAvailableActions(ticket, staff1)).toEqual([]);
+
+    // Reject returns to WAITING_LISTING
+    const s1Reject = computeTransitionResult(ticket, staff2, 'PD_REJECT_REWORK', { note: 'Thiếu ảnh' }, 2500);
+    expect(s1Reject.nextStatus).toBe('WAITING_LISTING');
+
+    ticket = { ...ticket, status: 'PENDING_GOLIVE_APPROVAL' };
+    const s2 = computeTransitionResult(ticket, staff2, 'PD_APPROVE_GOLIVE', {}, 3000);
     expect(s2.nextStatus).toBe('WAITING_GOLIVE');
-    expect(s2.emailPlan?.recipients).toEqual([om1.email]);
+    expect(s2.emailPlan?.recipients).toEqual([staff1.email]);
 
     ticket = { ...ticket, ...s2.ticketPatch };
+    const badUrl = validateTransition(ticket, staff1, 'OM_SUBMIT_GOLIVE', { productUrl: 'invalid' });
+    expect(badUrl.valid).toBe(false);
+
+    // OM submits GoLive URL -> closes task directly!
     const s3 = computeTransitionResult(
       ticket,
-      om1,
+      staff1,
       'OM_SUBMIT_GOLIVE',
       { productUrl: 'https://joytime.vn/products/new-888' },
       4000
     );
-    expect(s3.nextStatus).toBe('PENDING_CLOSE');
-
-    ticket = { ...ticket, ...s3.ticketPatch };
-    const s4Reject = computeTransitionResult(
-      ticket,
-      pd1,
-      'PD_REJECT_REWORK',
-      { note: 'Link bị lỗi 404' },
-      4500
-    );
-    expect(s4Reject.nextStatus).toBe('WAITING_GOLIVE');
-
-    ticket = { ...ticket, ...s4Reject.ticketPatch };
-    const s5 = computeTransitionResult(
-      ticket,
-      om1,
-      'OM_SUBMIT_GOLIVE',
-      { productUrl: 'https://joytime.vn/products/new-888-fixed' },
-      5000
-    );
-    ticket = { ...ticket, ...s5.ticketPatch };
-    const s6 = computeTransitionResult(ticket, pd1, 'PD_CLOSE', {}, 6000);
-    expect(s6.nextStatus).toBe('CLOSED');
+    expect(s3.nextStatus).toBe('CLOSED');
+    expect(s3.ticketPatch.closedAt).toBe(4000);
+    expect(s3.ticketPatch.productUrl).toBe('https://joytime.vn/products/new-888');
   });
 });
 
 describe('Group III (OFFICE) Multi-Assignee & Selective Rework', () => {
-  it('only notifies reviewer when all N assignees complete, and resets only targeted ones on rework', () => {
+  it('only notifies reviewer when all N assignees complete, omits undefined note, and resets only targeted ones on rework', () => {
     let ticket = makeBaseTicket({
       code: 'VP-0001',
       groupType: 'OFFICE',
       status: 'WAITING_OM',
-      assigneeIds: [om1.uid, pd2.uid],
+      assigneeIds: [staff1.uid, staff2.uid],
+      reviewerId: manager1.uid,
       assigneeStates: {
-        [om1.uid]: { completed: false, completedAt: null },
-        [pd2.uid]: { completed: false, completedAt: null },
+        [staff1.uid]: { completed: false, completedAt: null },
+        [staff2.uid]: { completed: false, completedAt: null },
       },
     });
 
-    const s1 = computeTransitionResult(ticket, om1, 'OM_COMPLETE', {}, 2000);
+    const s1 = computeTransitionResult(ticket, staff1, 'OM_COMPLETE', {}, 2000);
     expect(s1.nextStatus).toBe('WAITING_OM');
     expect(s1.emailPlan).toBeNull();
-    expect(s1.ticketPatch.assigneeStates?.[om1.uid]).not.toHaveProperty('note');
+    expect(s1.ticketPatch.assigneeStates?.[staff1.uid]).not.toHaveProperty('note');
 
     ticket = { ...ticket, ...s1.ticketPatch };
-    const s2 = computeTransitionResult(ticket, pd2, 'OM_COMPLETE', {}, 3000);
+    const s2 = computeTransitionResult(ticket, staff2, 'OM_COMPLETE', {}, 3000);
     expect(s2.nextStatus).toBe('PENDING_PD_CHECK');
-    expect(s2.emailPlan?.recipients).toEqual([pd1.email]);
-    expect(s2.ticketPatch.assigneeStates?.[pd2.uid]).not.toHaveProperty('note');
+    expect(s2.emailPlan?.recipients).toEqual([manager1.email]);
 
     ticket = { ...ticket, ...s2.ticketPatch };
     const s3 = computeTransitionResult(
       ticket,
-      pd1,
+      manager1,
       'PD_REJECT_REWORK',
-      { note: 'Cập nhật lại file báo cáo', reworkTargetUids: [om1.uid] },
+      { note: 'Cập nhật lại file báo cáo', reworkTargetUids: [staff1.uid] },
       4000
     );
     expect(s3.nextStatus).toBe('WAITING_OM');
-    expect(s3.ticketPatch.assigneeStates?.[om1.uid]?.completed).toBe(false);
-    expect(s3.ticketPatch.assigneeStates?.[om1.uid]).not.toHaveProperty('note');
-    expect(s3.ticketPatch.assigneeStates?.[pd2.uid]?.completed).toBe(true);
-    expect(s3.emailPlan?.recipients).toEqual([om1.email]);
+    expect(s3.ticketPatch.assigneeStates?.[staff1.uid]?.completed).toBe(false);
+    expect(s3.ticketPatch.assigneeStates?.[staff1.uid]).not.toHaveProperty('note');
+    expect(s3.ticketPatch.assigneeStates?.[staff2.uid]?.completed).toBe(true);
+    expect(s3.emailPlan?.recipients).toEqual([staff1.email]);
   });
 });
 
 describe('Overdue & Team-Wide Statistics', () => {
   it('flags open past-deadline tickets as overdue and aggregates all active staff', () => {
     const now = 100_000;
-    const t1 = makeBaseTicket({ id: '1', status: 'WAITING_OM', deadline: 90_000, assigneeIds: [om1.uid] });
-    const t2 = makeBaseTicket({ id: '2', status: 'CLOSED', deadline: 80_000, assigneeIds: [om1.uid] });
-    const t3 = makeBaseTicket({ id: '3', status: 'PENDING_PD_CHECK', deadline: 120_000, assigneeIds: [pd2.uid] });
+    const t1 = makeBaseTicket({ id: '1', status: 'WAITING_OM', deadline: 90_000, assigneeIds: [staff1.uid] });
+    const t2 = makeBaseTicket({ id: '2', status: 'CLOSED', deadline: 80_000, assigneeIds: [staff1.uid] });
+    const t3 = makeBaseTicket({ id: '3', status: 'PENDING_PD_CHECK', deadline: 120_000, assigneeIds: [staff2.uid] });
 
     expect(isTicketOverdue(t1, now)).toBe(true);
     expect(isTicketOverdue(t2, now)).toBe(false);
     expect(isTicketOverdue(t3, now)).toBe(false);
 
-    const omStats = computeStatistics([t1, t2, t3], [pd1, pd2, om1, om2], om1, now);
-    expect(omStats.totalTickets).toBe(3);
-    expect(omStats.overdueTickets).toBe(1);
-    expect(omStats.byStaff).toHaveLength(2);
+    const stats = computeStatistics([t1, t2, t3], [manager1, staff1, staff2], staff1, now);
+    expect(stats.totalTickets).toBe(3);
+    expect(stats.overdueTickets).toBe(1);
+    expect(stats.byStaff).toHaveLength(2);
   });
 });

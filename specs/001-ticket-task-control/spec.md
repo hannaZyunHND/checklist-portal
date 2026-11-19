@@ -18,6 +18,15 @@
 - Q: Nhóm III (`Công việc văn phòng`) có cần trường `Deadline` để tính Overdue không? → A: **Có**, trường `Deadline (*)` là bắt buộc tương tự Nhóm I và Nhóm II.
 - Q: Cập nhật nghiệp vụ 2026-11-18 (chiều): Ai có quyền tạo, giao việc, duyệt, xem và xóa task? → A: Cả `OM` và `PD` đều có quyền tạo task và giao việc chéo cho bất kỳ thành viên nào trong team (không phân biệt role khi giao việc). Riêng với `Listing sản phẩm mới` do `OM` tạo: bổ sung luôn `SKU dự kiến`, `URL sản phẩm`, chọn `PD` duyệt (`reviewerId`), và auto-pass bước `OM Listing` sang thẳng chờ `PD` đó duyệt GoLive (các `PD` khác chỉ xem, không duyệt được). Mọi tài khoản trong team đều xem được danh sách task; **chỉ tài khoản đã tạo ra task (`createdBy`) mới có quyền xóa task đó**.
 
+### Session 2026-11-19
+
+- Q: Cập nhật phân quyền tài khoản vs vai trò task & luồng Nhóm I/II? → A:
+  1. **Phân quyền tài khoản**: Chuyển sang 2 cấp tài khoản **`Quản lý` (`MANAGER`)** và **`Nhân viên` (`STAFF`)**, kèm nhãn bộ phận tham khảo (`department`: `PD` | `OM` | `OTHER`). Chỉ `Quản lý` được tạo/sửa tài khoản nhân sự trong trang Quản lý tài khoản; cả `Quản lý` và `Nhân viên` đều có quyền tạo mọi nhóm task, xem thống kê/danh sách, và chỉ người tạo task (`createdBy`) mới được xóa task đó.
+  2. **Vai trò OM / PD theo từng task**: Khi khởi tạo ticket, người tạo gán trực tiếp ai đảm nhiệm vai trò **OM thực hiện** và ai đảm nhiệm vai trò **PD kiểm tra/duyệt** (riêng Nhóm I không có PD).
+  3. **Nhóm I (`Chỉnh sửa sản phẩm cũ`)**: `OM thực hiện -> OM GoLive -> Đóng task` (bỏ hoàn toàn bước PD duyệt/làm lại).
+  4. **Nhóm II (`Listing sản phẩm mới`)**: `OM Listing -> PD check -> OM GoLive -> Đóng task` (khi OM hoàn tất GoLive URL thì ticket tự động đóng `CLOSED`).
+  5. **Hiển thị người khởi tạo request**: Bổ sung cột/trường `Người khởi tạo` (`createdByName`) trên bảng công việc, thẻ mobile và trang chi tiết ticket.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Quản lý Tài khoản & Phân quyền PD / OM (Priority: P1)

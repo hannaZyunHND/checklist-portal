@@ -7,13 +7,14 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, bootstrapPdEmails, db } from '../config/firebase';
-import type { UserProfile, UserRole } from '../types/user';
+import type { DepartmentType, UserProfile, UserRole } from '../types/user';
 import { compressImageFileToDataUrl } from '../utils/imageCompression';
 
 export interface RegisterInput {
   email: string;
   password: string;
   displayName: string;
+  department?: DepartmentType;
   pdInviteCode?: string;
 }
 
@@ -26,20 +27,9 @@ export const PRESET_AVATARS = [
 ];
 
 let registeringFlag = false;
-const registrationListeners = new Set<() => void>();
 
 export function isRegisteringAccount(): boolean {
   return registeringFlag;
-}
-
-export function onRegisteringChange(listener: () => void): () => void {
-  registrationListeners.add(listener);
-  return () => registrationListeners.delete(listener);
-}
-
-function setRegisteringFlag(val: boolean) {
-  registeringFlag = val;
-  registrationListeners.forEach((fn) => fn());
 }
 
 export async function compressAvatarFile(file: File): Promise<string> {
@@ -56,7 +46,7 @@ export async function registerAccount(input: RegisterInput): Promise<UserProfile
   const cleanName = input.displayName.trim();
   const cleanInvite = (input.pdInviteCode || '').trim();
 
-  setRegisteringFlag(true);
+  registeringFlag = true;
   let createdCredUser: Awaited<ReturnType<typeof createUserWithEmailAndPassword>>['user'] | null =
     null;
 
@@ -66,7 +56,7 @@ export async function registerAccount(input: RegisterInput): Promise<UserProfile
 
     await updateProfile(cred.user, { displayName: cleanName });
 
-    let role: UserRole = 'OM';
+    let role: UserRole = 'STAFF';
     let inviteCodeUsed = '';
 
     let configBootstrapEmails: string[] = [];
@@ -93,7 +83,7 @@ export async function registerAccount(input: RegisterInput): Promise<UserProfile
 
     if (cleanInvite) {
       if (storedInviteCode && cleanInvite === storedInviteCode) {
-        role = 'PD';
+        role = 'MANAGER';
         inviteCodeUsed = cleanInvite;
       } else {
         try {
@@ -102,11 +92,11 @@ export async function registerAccount(input: RegisterInput): Promise<UserProfile
           // ignore
         }
         throw new Error(
-          'Mã mời PD không chính xác. Vui lòng kiểm tra lại hoặc để trống để đăng ký vai trò OM.'
+          'Mã mời Quản lý không chính xác. Vui lòng kiểm tra lại hoặc để trống để đăng ký tài khoản Nhân viên.'
         );
       }
     } else if (isBootstrapEmail) {
-      role = 'PD';
+      role = 'MANAGER';
     }
 
     const now = Date.now();
@@ -116,6 +106,7 @@ export async function registerAccount(input: RegisterInput): Promise<UserProfile
       displayName: cleanName,
       avatarDataUrl: '',
       role,
+      department: input.department || 'OTHER',
       createdAt: now,
       updatedAt: now,
     };
@@ -126,11 +117,10 @@ export async function registerAccount(input: RegisterInput): Promise<UserProfile
         ...(inviteCodeUsed ? { inviteCodeUsed } : {}),
       });
     } catch (writeErr) {
-      // If PD creation failed due to missing config/app in Firestore Rules, fall back to OM or throw clear error
-      if (role === 'PD') {
-        const fallbackOm: UserProfile = { ...profile, role: 'OM' };
-        await setDoc(doc(db, 'users', cred.user.uid), fallbackOm);
-        return fallbackOm;
+      if (role === 'MANAGER') {
+        const fallbackStaff: UserProfile = { ...profile, role: 'STAFF' };
+        await setDoc(doc(db, 'users', cred.user.uid), fallbackStaff);
+        return fallbackStaff;
       }
       throw writeErr;
     }
@@ -146,7 +136,7 @@ export async function registerAccount(input: RegisterInput): Promise<UserProfile
     }
     throw err;
   } finally {
-    setRegisteringFlag(false);
+    registeringFlag = false;
   }
 }
 
@@ -160,7 +150,7 @@ export async function logoutAccount(): Promise<void> {
 
 export async function updateUserProfileInfo(
   uid: string,
-  updates: { displayName: string; avatarDataUrl: string }
+  updates: { displayName: string; avatarDataUrl: string; department?: DepartmentType }
 ): Promise<void> {
   const cleanName = updates.displayName.trim();
   if (!cleanName) {
@@ -169,6 +159,7 @@ export async function updateUserProfileInfo(
   await updateDoc(doc(db, 'users', uid), {
     displayName: cleanName,
     avatarDataUrl: updates.avatarDataUrl,
+    ...(updates.department ? { department: updates.department } : {}),
     updatedAt: Date.now(),
   });
   if (auth.currentUser && auth.currentUser.uid === uid) {

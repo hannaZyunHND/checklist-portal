@@ -89,7 +89,7 @@ function WorkspaceRoutes() {
         <Route
           path="/team"
           element={
-            <ProtectedRoute requiredRole="PD">
+            <ProtectedRoute requiredRole="MANAGER">
               <TeamPage users={users} />
             </ProtectedRoute>
           }

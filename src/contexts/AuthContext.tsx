@@ -3,7 +3,12 @@ import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore';
 import { auth, bootstrapPdEmails, db, isFirebaseConfigured } from '../config/firebase';
 import { isRegisteringAccount } from '../services/authService';
-import type { UserProfile, UserRole } from '../types/user';
+import {
+  inferDefaultDepartment,
+  normalizeUserRole,
+  type UserProfile,
+  type UserRole,
+} from '../types/user';
 
 interface AuthContextValue {
   firebaseUser: FirebaseUser | null;
@@ -50,25 +55,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         doc(db, 'users', user.uid),
         async (snap) => {
           if (snap.exists()) {
-            setUserProfile({ uid: snap.id, ...(snap.data() as Omit<UserProfile, 'uid'>) });
+            const raw = snap.data() as Omit<UserProfile, 'uid' | 'role'> & { role?: string };
+            setUserProfile({
+              ...raw,
+              uid: snap.id,
+              role: normalizeUserRole(raw.role),
+              department: inferDefaultDepartment(raw.role, raw.department),
+            });
             setLoading(false);
             return;
           }
 
-          // Wait for registerAccount() to write users/{uid}; onSnapshot fires automatically once written
           if (isRegisteringAccount()) {
             return;
           }
 
-          // Auto-heal profile only on login when Auth user exists without Firestore profile
           const email = (user.email || '').toLowerCase();
-          let role: UserRole = bootstrapPdEmails.includes(email) ? 'PD' : 'OM';
+          let role: UserRole = bootstrapPdEmails.includes(email) ? 'MANAGER' : 'STAFF';
           try {
             const cfgSnap = await getDoc(doc(db, 'config', 'app'));
             if (cfgSnap.exists()) {
               const list = (cfgSnap.data().bootstrapPdEmails || []) as string[];
               if (list.map((e) => String(e).trim().toLowerCase()).includes(email)) {
-                role = 'PD';
+                role = 'MANAGER';
               }
             }
           } catch {
@@ -82,6 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             displayName: user.displayName || email.split('@')[0] || 'Thành viên',
             avatarDataUrl: '',
             role,
+            department: 'OTHER',
             createdAt: now,
             updatedAt: now,
           };
@@ -89,11 +99,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             await setDoc(doc(db, 'users', user.uid), fallbackProfile);
             setUserProfile(fallbackProfile);
           } catch {
-            if (role === 'PD') {
-              const omProfile: UserProfile = { ...fallbackProfile, role: 'OM' };
+            if (role === 'MANAGER') {
+              const staffProfile: UserProfile = { ...fallbackProfile, role: 'STAFF' };
               try {
-                await setDoc(doc(db, 'users', user.uid), omProfile);
-                setUserProfile(omProfile);
+                await setDoc(doc(db, 'users', user.uid), staffProfile);
+                setUserProfile(staffProfile);
               } catch {
                 setUserProfile(null);
               }

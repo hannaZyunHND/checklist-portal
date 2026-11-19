@@ -74,23 +74,28 @@ export function TicketCardList({ tickets, nowMs }: TicketCardListProps) {
             )}
 
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
-              <div className="flex items-center gap-1.5">
-                {ticket.assigneeIds.slice(0, 2).map((uid) => {
-                  const snap = ticket.assigneeSnapshots[uid];
-                  return (
-                    <UserAvatar
-                      key={uid}
-                      name={snap?.displayName || uid}
-                      avatarDataUrl={snap?.avatarDataUrl}
-                      size="xs"
-                    />
-                  );
-                })}
-                <span className="text-xs text-slate-600">
-                  {ticket.assigneeIds.length === 1
-                    ? ticket.assigneeSnapshots[ticket.assigneeIds[0]]?.displayName || 'OM'
-                    : `${ticket.assigneeIds.length} nhân sự`}
-                </span>
+              <div className="space-y-1">
+                <div className="flex items-center gap-1.5">
+                  {ticket.assigneeIds.slice(0, 2).map((uid) => {
+                    const snap = ticket.assigneeSnapshots[uid];
+                    return (
+                      <UserAvatar
+                        key={uid}
+                        name={snap?.displayName || uid}
+                        avatarDataUrl={snap?.avatarDataUrl}
+                        size="xs"
+                      />
+                    );
+                  })}
+                  <span className="text-xs text-slate-700">
+                    {ticket.assigneeIds.length === 1
+                      ? ticket.assigneeSnapshots[ticket.assigneeIds[0]]?.displayName || 'OM'
+                      : `${ticket.assigneeIds.length} nhân sự`}
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-500">
+                  Khởi tạo: <span className="font-medium text-slate-700">{ticket.createdByName}</span>
+                </div>
               </div>
 
               <div className="text-right text-xs text-slate-600">

@@ -28,7 +28,8 @@ export function TicketTable({
             <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600">
               <th className="px-4 py-3">Mã ID</th>
               <th className="px-4 py-3">Nhóm &amp; Tiêu đề</th>
-              <th className="px-4 py-3">Nhân sự giao</th>
+              <th className="px-4 py-3">Người khởi tạo</th>
+              <th className="px-4 py-3">Vai trò thực hiện</th>
               <th className="px-4 py-3">Thời gian tạo</th>
               <th className="px-4 py-3">Deadline</th>
               <th className="px-4 py-3">Trạng thái</th>
@@ -88,6 +89,10 @@ export function TicketTable({
                     )}
                   </td>
                   <td className="px-4 py-3.5 align-top">
+                    <div className="text-xs font-semibold text-slate-800">{ticket.createdByName}</div>
+                    <div className="text-[11px] text-slate-500">{ticket.createdByEmail}</div>
+                  </td>
+                  <td className="px-4 py-3.5 align-top">
                     <div className="flex flex-col gap-1.5">
                       {ticket.assigneeIds.slice(0, 3).map((uid) => {
                         const snap = ticket.assigneeSnapshots[uid];
@@ -108,6 +113,11 @@ export function TicketTable({
                         <span className="text-xs text-slate-500">
                           +{ticket.assigneeIds.length - 3} nhân sự khác
                         </span>
+                      )}
+                      {ticket.groupType !== 'EDIT_OLD' && ticket.reviewerName && (
+                        <div className="text-[11px] text-violet-700">
+                          PD duyệt: <strong>{ticket.reviewerName}</strong>
+                        </div>
                       )}
                     </div>
                   </td>

@@ -8,7 +8,7 @@ import type {
   TicketStatus,
   TransitionPayload,
 } from '../types/ticket';
-import type { UserProfile, UserRole } from '../types/user';
+import type { UserProfile } from '../types/user';
 
 export interface ValidationResult {
   valid: boolean;
@@ -56,23 +56,15 @@ export function canDeleteTicket(
   return ticket.createdBy === user.uid;
 }
 
-export function getInitialStatusForCreation(
-  groupType: CreateTicketInput['groupType'],
-  creatorRole: UserRole
-): TicketStatus {
-  switch (groupType) {
+export function getInitialStatusForCreation(input: Pick<CreateTicketInput, 'groupType' | 'autoPassListing'>): TicketStatus {
+  switch (input.groupType) {
     case 'EDIT_OLD':
       return 'WAITING_OM';
     case 'NEW_LISTING':
-      // OM creating a NEW_LISTING ticket auto-passes the OM Listing step
-      return creatorRole === 'OM' ? 'PENDING_GOLIVE_APPROVAL' : 'WAITING_LISTING';
+      return input.autoPassListing ? 'PENDING_GOLIVE_APPROVAL' : 'WAITING_LISTING';
     case 'OFFICE':
       return 'WAITING_OM';
   }
-}
-
-export function getInitialStatusForGroup(groupType: CreateTicketInput['groupType']): TicketStatus {
-  return getInitialStatusForCreation(groupType, 'PD');
 }
 
 export function getGroupPrefix(groupType: CreateTicketInput['groupType']): string {
@@ -86,15 +78,8 @@ export function getGroupPrefix(groupType: CreateTicketInput['groupType']): strin
   }
 }
 
-export function validateCreateTicketInput(
-  input: CreateTicketInput,
-  creatorRole: UserRole = 'PD'
-): ValidationResult {
+export function validateCreateTicketInput(input: CreateTicketInput): ValidationResult {
   const errors: Record<string, string> = {};
-
-  if (creatorRole === 'OM' && input.groupType !== 'NEW_LISTING') {
-    errors.groupType = 'Tài khoản OM chỉ được tạo ticket nhóm Listing sản phẩm mới.';
-  }
 
   if (!input.title.trim()) {
     errors.title = 'Vui lòng nhập tiêu đề ticket.';
@@ -108,7 +93,7 @@ export function validateCreateTicketInput(
     (input.groupType === 'EDIT_OLD' || input.groupType === 'NEW_LISTING') &&
     input.assigneeIds.length !== 1
   ) {
-    errors.assigneeIds = 'Nhóm việc này chỉ giao cho đúng 1 nhân sự thực hiện.';
+    errors.assigneeIds = 'Nhóm việc này chỉ chọn đúng 1 người thực hiện (vai trò OM).';
   }
 
   if (input.groupType === 'EDIT_OLD') {
@@ -122,24 +107,21 @@ export function validateCreateTicketInput(
     if (!input.productBasicInfo?.trim()) {
       errors.productBasicInfo = 'Vui lòng nhập thông tin sản phẩm cơ bản.';
     }
-    if (creatorRole === 'OM') {
-      if (!input.expectedSku?.trim()) {
-        errors.expectedSku = 'Vui lòng nhập SKU dự kiến khi OM tạo Listing.';
-      }
-      if (!input.productUrl?.trim()) {
-        errors.productUrl = 'Vui lòng nhập URL sản phẩm.';
-      } else if (!isValidHttpUrl(input.productUrl)) {
-        errors.productUrl = 'URL sản phẩm phải bắt đầu bằng http:// hoặc https://.';
-      }
-      if (!input.reviewerId?.trim()) {
-        errors.reviewerId = 'Vui lòng chọn PD duyệt cho đơn Listing này.';
-      }
-    } else if (input.productUrl?.trim() && !isValidHttpUrl(input.productUrl)) {
+    if (!input.reviewerId?.trim()) {
+      errors.reviewerId = 'Vui lòng chọn người kiểm tra (vai trò PD trong task).';
+    }
+    if (input.autoPassListing && !input.expectedSku?.trim()) {
+      errors.expectedSku = 'Vui lòng nhập SKU dự kiến khi bỏ qua bước OM Listing.';
+    }
+    if (input.productUrl?.trim() && !isValidHttpUrl(input.productUrl)) {
       errors.productUrl = 'URL sản phẩm phải bắt đầu bằng http:// hoặc https://.';
     }
   } else if (input.groupType === 'OFFICE') {
     if (!input.officeRequirements?.trim()) {
       errors.officeRequirements = 'Vui lòng nhập yêu cầu công việc.';
+    }
+    if (!input.reviewerId?.trim()) {
+      errors.reviewerId = 'Vui lòng chọn người kiểm tra & đóng task.';
     }
   }
 
@@ -166,16 +148,22 @@ export function getAvailableActions(ticket: Ticket, user: UserProfile): TicketAc
   const isAssignee = ticket.assigneeIds.includes(user.uid);
   const isReviewer = getTicketReviewerId(ticket) === user.uid;
 
+  // Group I: OM thực hiện -> OM GoLive -> Đóng Task (không có PD)
   if (ticket.groupType === 'EDIT_OLD') {
     if (ticket.status === 'WAITING_OM' && isAssignee) {
       return ['OM_COMPLETE'];
     }
+    if (ticket.status === 'WAITING_GOLIVE' && isAssignee) {
+      return ['OM_CLOSE_EDIT_GOLIVE'];
+    }
+    // Hỗ trợ tương thích ngược cho ticket cũ nếu đang kẹt ở PENDING_PD_CHECK
     if (ticket.status === 'PENDING_PD_CHECK' && isReviewer) {
       return ['PD_CLOSE', 'PD_REJECT_REWORK'];
     }
     return [];
   }
 
+  // Group II: OM listing -> PD check -> OM GoLive -> Đóng Task
   if (ticket.groupType === 'NEW_LISTING') {
     if (ticket.status === 'WAITING_LISTING' && isAssignee) {
       return ['OM_SUBMIT_LISTING'];
@@ -186,13 +174,14 @@ export function getAvailableActions(ticket: Ticket, user: UserProfile): TicketAc
     if (ticket.status === 'WAITING_GOLIVE' && isAssignee) {
       return ['OM_SUBMIT_GOLIVE'];
     }
+    // Hỗ trợ tương thích ngược cho ticket cũ đang ở PENDING_CLOSE
     if (ticket.status === 'PENDING_CLOSE' && isReviewer) {
       return ['PD_CLOSE', 'PD_REJECT_REWORK'];
     }
     return [];
   }
 
-  // OFFICE (Group III)
+  // Group III: OFFICE
   if (ticket.status === 'WAITING_OM' && isAssignee) {
     const alreadyDone = Boolean(ticket.assigneeStates?.[user.uid]?.completed);
     return alreadyDone ? [] : ['OM_COMPLETE'];
@@ -225,7 +214,7 @@ export function validateTransition(
 
   if (action === 'OM_SUBMIT_GOLIVE') {
     if (!payload.productUrl?.trim()) {
-      errors.productUrl = 'Vui lòng nhập URL sản phẩm sau khi GoLive.';
+      errors.productUrl = 'Vui lòng nhập URL sản phẩm khi GoLive.';
     } else if (!isValidHttpUrl(payload.productUrl)) {
       errors.productUrl = 'URL sản phẩm phải bắt đầu bằng http:// hoặc https://.';
     }
@@ -270,19 +259,24 @@ export function computeTransitionResult(
     .filter((e): e is string => Boolean(e));
   const reviewerEmail = getTicketReviewerEmail(ticket);
 
-  // Group I: EDIT_OLD
+  // Group I: EDIT_OLD -> OM thực hiện => OM GoLive => Đóng Task
   if (ticket.groupType === 'EDIT_OLD') {
     if (action === 'OM_COMPLETE') {
       return {
-        nextStatus: 'PENDING_PD_CHECK',
-        ticketPatch: { status: 'PENDING_PD_CHECK', updatedAt: nowMs },
+        nextStatus: 'WAITING_GOLIVE',
+        ticketPatch: { status: 'WAITING_GOLIVE', updatedAt: nowMs },
         historyAction: 'OM_COMPLETE',
         historyNote: trimmedNote,
-        emailPlan: {
-          eventType: 'OM_COMPLETED',
-          recipients: [reviewerEmail],
-          note: trimmedNote,
-        },
+        emailPlan: null,
+      };
+    }
+    if (action === 'OM_CLOSE_EDIT_GOLIVE') {
+      return {
+        nextStatus: 'CLOSED',
+        ticketPatch: { status: 'CLOSED', closedAt: nowMs, updatedAt: nowMs },
+        historyAction: 'OM_CLOSE_EDIT_GOLIVE',
+        historyNote: trimmedNote,
+        emailPlan: null,
       };
     }
     if (action === 'PD_REJECT_REWORK') {
@@ -309,7 +303,7 @@ export function computeTransitionResult(
     }
   }
 
-  // Group II: NEW_LISTING
+  // Group II: NEW_LISTING -> OM listing => PD check => OM GoLive => Đóng Task
   if (ticket.groupType === 'NEW_LISTING') {
     if (action === 'OM_SUBMIT_LISTING') {
       const expectedSku = payload.expectedSku!.trim();
@@ -348,22 +342,17 @@ export function computeTransitionResult(
     if (action === 'OM_SUBMIT_GOLIVE') {
       const productUrl = payload.productUrl!.trim();
       return {
-        nextStatus: 'PENDING_CLOSE',
+        nextStatus: 'CLOSED',
         ticketPatch: {
-          status: 'PENDING_CLOSE',
+          status: 'CLOSED',
           productUrl,
+          closedAt: nowMs,
           updatedAt: nowMs,
         },
         historyAction: 'OM_SUBMIT_GOLIVE',
         historyNote: trimmedNote,
         historyMetadata: { productUrl },
-        emailPlan: {
-          eventType: 'GOLIVE_SUBMITTED',
-          recipients: [reviewerEmail],
-          expectedSku: ticket.expectedSku || undefined,
-          productUrl,
-          note: trimmedNote,
-        },
+        emailPlan: null,
       };
     }
     if (action === 'PD_REJECT_REWORK') {

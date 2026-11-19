@@ -13,6 +13,7 @@ export type TicketStatus =
 
 export type TicketAction =
   | 'OM_COMPLETE'
+  | 'OM_CLOSE_EDIT_GOLIVE'
   | 'OM_SUBMIT_LISTING'
   | 'PD_APPROVE_GOLIVE'
   | 'OM_SUBMIT_GOLIVE'
@@ -22,6 +23,7 @@ export type TicketAction =
 export type HistoryAction =
   | 'CREATE'
   | 'OM_COMPLETE'
+  | 'OM_CLOSE_EDIT_GOLIVE'
   | 'OM_CHECK_PARTIAL'
   | 'OM_SUBMIT_LISTING'
   | 'PD_APPROVE_GOLIVE'
@@ -75,9 +77,9 @@ export interface Ticket {
   createdBy: string;
   createdByName: string;
   createdByEmail: string;
-  reviewerId?: string;
-  reviewerName?: string;
-  reviewerEmail?: string;
+  reviewerId?: string | null;
+  reviewerName?: string | null;
+  reviewerEmail?: string | null;
   assigneeIds: string[];
   assigneeSnapshots: Record<string, UserSnapshot>;
   createdAt: number;
@@ -102,7 +104,7 @@ export interface TicketHistoryEntry {
   ticketId: string;
   actorId: string;
   actorName: string;
-  actorRole: UserRole;
+  actorRole: UserRole | 'PD' | 'OM';
   action: HistoryAction;
   fromStatus: TicketStatus | null;
   toStatus: TicketStatus;
@@ -135,6 +137,7 @@ export interface CreateTicketInput {
   deadline: number;
   assigneeIds: string[];
   reviewerId?: string;
+  autoPassListing?: boolean;
   sku?: string;
   editRequirements?: string;
   productBasicInfo?: string;
@@ -165,22 +168,23 @@ export const TICKET_GROUP_SHORT_LABELS: Record<TicketGroupType, string> = {
 };
 
 export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
-  WAITING_OM: 'Chờ OM thực hiện',
-  PENDING_PD_CHECK: 'Chờ PD kiểm tra',
+  WAITING_OM: 'Chờ thực hiện',
+  PENDING_PD_CHECK: 'Chờ kiểm tra',
   WAITING_LISTING: 'Chờ OM listing',
-  PENDING_GOLIVE_APPROVAL: 'Chờ PD duyệt GoLive',
+  PENDING_GOLIVE_APPROVAL: 'Chờ PD check',
   WAITING_GOLIVE: 'Chờ OM GoLive',
-  PENDING_CLOSE: 'Chờ PD kiểm tra đóng',
+  PENDING_CLOSE: 'Chờ kiểm tra đóng',
   CLOSED: 'Đã đóng',
 };
 
 export const HISTORY_ACTION_LABELS: Record<HistoryAction, string> = {
   CREATE: 'Tạo ticket mới',
-  OM_COMPLETE: 'OM hoàn thành',
-  OM_CHECK_PARTIAL: 'OM hoàn thành phần việc',
-  OM_SUBMIT_LISTING: 'OM hoàn thành listing & gửi SKU dự kiến',
-  PD_APPROVE_GOLIVE: 'PD xác nhận Golive sản phẩm',
-  OM_SUBMIT_GOLIVE: 'OM gửi URL sản phẩm GoLive',
-  PD_REJECT_REWORK: 'PD yêu cầu làm lại',
-  PD_CLOSE: 'PD xác nhận đóng ticket',
+  OM_COMPLETE: 'Hoàn thành bước thực hiện',
+  OM_CLOSE_EDIT_GOLIVE: 'OM GoLive & Đóng Task',
+  OM_CHECK_PARTIAL: 'Hoàn thành phần việc cá nhân',
+  OM_SUBMIT_LISTING: 'OM hoàn thành listing & gửi PD check',
+  PD_APPROVE_GOLIVE: 'PD duyệt GoLive sản phẩm',
+  OM_SUBMIT_GOLIVE: 'OM GoLive & Đóng Task',
+  PD_REJECT_REWORK: 'Yêu cầu làm lại',
+  PD_CLOSE: 'Xác nhận đóng ticket',
 };

@@ -7,8 +7,14 @@ import {
   type TicketGroupType,
   type TicketStatus,
 } from '../../types/ticket';
-import type { UserProfile } from '../../types/user';
+import { ACCOUNT_ROLE_LABELS, DEPARTMENT_LABELS, type UserProfile } from '../../types/user';
 import { ModalOrSheet } from '../ui/ModalOrSheet';
+
+function formatMemberOptionLabel(member: UserProfile): string {
+  const roleLabel = ACCOUNT_ROLE_LABELS[member.role];
+  const deptLabel = member.department ? DEPARTMENT_LABELS[member.department] : '';
+  return deptLabel ? `${member.displayName} (${roleLabel} · ${deptLabel})` : `${member.displayName} (${roleLabel})`;
+}
 
 export interface TicketFilterState {
   search: string;
@@ -120,7 +126,7 @@ export function TicketFilterBar({ filters, onChange, users }: TicketFilterBarPro
             <option value="ALL">Tất cả nhân sự</option>
             {users.map((member) => (
               <option key={member.uid} value={member.uid}>
-                {member.displayName} ({member.role})
+                {formatMemberOptionLabel(member)}
               </option>
             ))}
           </select>
@@ -257,7 +263,7 @@ export function TicketFilterBar({ filters, onChange, users }: TicketFilterBarPro
               <option value="ALL">Tất cả nhân sự</option>
               {users.map((member) => (
                 <option key={member.uid} value={member.uid}>
-                  {member.displayName} ({member.role})
+                  {formatMemberOptionLabel(member)}
                 </option>
               ))}
             </select>
